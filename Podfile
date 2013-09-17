@@ -1,0 +1,8 @@
+platform :ios, '6.0'
+pod 'JSONKit', '~> 1.5pre'
+pod 'FMDB', '~> 2.1'
+pod 'AFNetworking', '~> 1.1.0'
+pod 'AFOAuth2Client', '~> 0.1.0'
+pod 'ISO8601DateFormatter', '~> 0.6'
+pod 'PDKeychainBindingsController', '~> 0.0.1'
+pod 'SecureUDID', '~> 1.1'

@@ -1,0 +1,514 @@
+//
+// SBSession.m
+//  SBData
+//
+//  Created by Samuel Sutch on 2/11/13.
+//  Copyright (c) Steamboat Labs. All rights reserved.
+//
+
+#import "SBSession.h"
+#import <AFNetworking/AFHTTPClient.h>
+#import <AFNetworking/AFHTTPRequestOperation.h>
+#import <AFNetworking/AFJSONRequestOperation.h>
+#import <AFOAuth2Client/AFOAuth2Client.h>
+#import <SecureUDID/SecureUDID.h>
+#import "SBUser.h"
+#import "SBDataObject.h"
+#import "NSDictionary+Convenience.h"
+
+NSString *SBLoginDidBecomeInvalidNotification           = @"SBLoginDidBecomeInvalidNotification";
+NSString *SBLogoutNotification                          = @"SBLogoutNotification";
+NSString *SBDidReceiveRemoteNotification                = @"SBDidReceiveRemoteNotification";
+NSString *SBDidReceiveRemoteNotificationAuthorization   = @"SBDidReceiveRemoteNotificationAuthorization";
+
+//
+// AFNetworking subclasses ---------------------------------------------------------------------------------------------
+//
+
+@interface SBJSONRequestOperation : AFJSONRequestOperation
+@end
+
+@implementation SBJSONRequestOperation
+
+- (BOOL)allowsInvalidSSLCertificate
+{
+    NSNumber *allow = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiAllowUntrustedCertificateKey];
+    if (!allow) {
+        return NO;
+    }
+    return [allow boolValue];
+}
+
+@end
+
+@interface SBHTTPClient : AFHTTPClient
+@end
+
+@implementation SBHTTPClient
+
+- (NSMutableURLRequest *)requestWithMethod:(NSString *)method path:(NSString *)path parameters:(NSDictionary *)parameters
+{
+
+    NSMutableURLRequest *req = [super requestWithMethod:method path:path parameters:parameters];
+    [req setHTTPShouldHandleCookies:NO];
+    return req;
+}
+
+@end
+
+
+@interface SBOAuth2Client : AFOAuth2Client
+@end
+
+@implementation SBOAuth2Client
+
+- (NSMutableURLRequest *)requestWithMethod:(NSString *)method path:(NSString *)path parameters:(NSDictionary *)parameters
+{
+    NSMutableURLRequest *req = [super requestWithMethod:method path:path parameters:parameters];
+    [req setHTTPShouldHandleCookies:NO];
+    return req;
+}
+
+@end
+
+//
+// Actual Implementation -----------------------------------------------------------------------------------------------
+//
+
+@implementation SBSessionData
+
+@dynamic userKey;
+@dynamic s3Bucket;
+@dynamic s3UploadPrefix;
+@dynamic prefs;
+
++ (NSString *)tableName { return @"sessiondata"; }
+
++ (NSArray *)indexes { return [[super indexes] arrayByAddingObjectsFromArray:@[ @[ @"userKey" ] ]]; }
+
++ (void)load
+{
+    [self registerModel:self];
+}
+
+- (NSDictionary *)prefs
+{
+    if (![self valueForKey:@"prefs"]) {
+        [self setValue:[NSDictionary dictionary] forKey:@"prefs"];
+    }
+    return [self valueForKey:@"prefs"];
+}
+
+- (void)setPrefValue:(id)val forKey:(id<NSCopying>)key
+{
+    self.prefs = [self.prefs dictionaryByMergingWithDictionary:@{ key: val }];
+    [self save];
+}
+
+@end
+
+
+@interface SBSession ()
+{
+    AFOAuthCredential *_apiCredential;
+}
+
+@property (nonatomic) AFHTTPClient *anonymousHttpClient;
+@property (nonatomic) AFOAuth2Client *authorizedHttpClient;
+@property (nonatomic) AFOAuthCredential *apiCredential;
+@property (nonatomic) NSString *apiMountPointSpec;
+@property (nonatomic) NSString *apiVersion;
+@property (nonatomic) SBUser *user;
+@property (nonatomic) SBSessionData *sessionData;
+
+
+- (void)_configureHttpClient:(AFHTTPClient *)cli;
+
+- (void)getOAuth:(SBUser *)user password:(NSString *)password success:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onError;
+
+@end
+
+@implementation SBSession
+
++ (instancetype)lastUsedSession
+{
+    NSUserDefaults *userDefs = [NSUserDefaults standardUserDefaults];
+    NSString *ident = [userDefs stringForKey:@"SBLastSessionIdentifier"];
+    NSLog(@"reviving session identifier: %@", ident);
+    if (ident != nil) {
+        NSString *email = [self emailAddressForIdentifier:ident];
+        return [self sessionWithEmailAddress:email];
+    }
+    return nil;
+}
+
++ (void)setLastUsedSession:(SBSession *)session
+{
+    NSUserDefaults *userDefs = [NSUserDefaults standardUserDefaults];
+    if (session == nil) {
+        [userDefs removeObjectForKey:@"SBLastSessionIdentifier"];
+    } else {
+        [userDefs setObject:session.identifier forKey:@"SBLastSessionIdentifier"];
+    }
+    [userDefs synchronize];
+}
+
+static NSMutableDictionary *_sessionByEmailAddress = nil;
+
++ (void)initialize
+{
+    static BOOL didInitialize = NO;
+    if (!didInitialize) {
+        didInitialize = YES;
+        _sessionByEmailAddress = [[NSMutableDictionary alloc] init];
+    }
+}
+
++ (instancetype)sessionWithEmailAddress:(NSString *)email
+{
+    if (!email) {
+        return nil;
+    }
+    if (!_sessionByEmailAddress[email]) {
+        _sessionByEmailAddress[email] = [[self alloc] initWithEmailAddress:email];
+    }
+    return _sessionByEmailAddress[email];
+}
+
++ (NSString *)emailAddressForIdentifier:(NSString *)ident
+{
+    SBSessionData *meta = [[SBSessionData meta] findByKey:ident];
+    if (meta) {
+        SBUser *user = [[SBUser meta] findByKey:meta.userKey];
+        if (user) {
+            return user.email;
+        }
+    }
+    return nil;
+}
+
+- (id)initWithIdentifier:(NSString *)identifier
+{
+    self = [super init];
+    if (self) {
+        _apiMountPointSpec = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiBaseURLKey];
+        _apiVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiVersionKey];
+        if (identifier != nil) {
+            _sessionData = [[SBSessionData meta] findByKey:identifier];
+            _user = [[SBUser meta] findByKey:_sessionData.userKey];
+        } else {
+            // fresh session
+            _sessionData = [[SBSessionData alloc] init];
+        }
+    }
+    return self;
+}
+
+- (id)initWithEmailAddress:(NSString *)emailAddy
+{
+    self = [self initWithIdentifier:nil];
+    if (self && emailAddy != nil) {
+        // try to find an existingSBUser with that email
+        SBUser *user = [[SBUser meta] findOne:@{ @"email": emailAddy }];
+        NSLog(@"user: %@", user);
+        if (user != nil) {
+            // now try to find an existing session with that data
+            SBSessionData *session = [[SBSessionData meta] findOne:@{ @"userKey": [user key] }];
+            NSLog(@"session: %@", session);
+            if (session) {
+                user.session = self;
+                user.authorized = YES;
+                _sessionData = session;
+                _user = user;
+            }
+        }
+    }
+    return self;
+}
+
+- (void)setPreferenceValue:(id)value forKey:(id<NSCopying>)key
+{
+    [self.sessionData setPrefValue:value forKey:key];
+}
+
+- (id)preferenceValueForKey:(id<NSCopying>)key
+{
+    return [self.sessionData.prefs objectForKey:key];
+}
+
+- (NSString *)identifier
+{
+    return _sessionData.key;
+}
+
+- (id (^)(SBModel *))objectDecorator
+{
+    static id (^ret) (SBModel *mod);
+    if (!ret) {
+        ret = ^ (SBModel *mod) {
+            SBDataObject *obj = (SBDataObject *)mod;
+            obj.session = self;
+            obj.authorized = YES;
+            return obj;
+        };
+    }
+    return ret;
+}
+
+- (SBModelQueryBuilder *)queryBuilderForClass:(Class)modelCls
+{
+    return [[[[modelCls meta] queryBuilder] decorateResults:self.objectDecorator] property:@"userKey" isEqualTo:self.user.key];
+}
+
+- (SBModelQueryBuilder *)unsafeQueryBuilderForClass:(Class)modelCls
+{
+    return [[[[modelCls unsafeMeta] queryBuilder] decorateResults:self.objectDecorator] property:@"userKey" isEqualTo:self.user.key];
+}
+
+- (void)_configureHttpClient:(AFHTTPClient *)cli
+{
+    [cli registerHTTPOperationClass:[SBJSONRequestOperation class]];
+}
+
+- (AFHTTPClient *)anonymousHttpClient
+{
+    if (!_anonymousHttpClient) {
+        NSURL *baseUrl = [NSURL URLWithString:[NSString stringWithFormat:self.apiMountPointSpec, self.apiVersion]];
+        _anonymousHttpClient = [[SBHTTPClient alloc] initWithBaseURL:baseUrl];
+        [self _configureHttpClient:_anonymousHttpClient];
+    }
+    return _anonymousHttpClient;
+}
+
+- (AFHTTPClient *)authorizedHttpClient
+{
+    if (!_authorizedHttpClient) {
+        NSURL *baseUrl = [NSURL URLWithString:[NSString stringWithFormat:self.apiMountPointSpec, self.apiVersion]];
+        _authorizedHttpClient = [[SBOAuth2Client alloc] initWithBaseURL:baseUrl
+                                                               clientID:[[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiIdKey]
+                                                                 secret:[[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiSecretKey]];
+    }
+    if (self.apiCredential) {
+        [_authorizedHttpClient setAuthorizationHeaderWithCredential:self.apiCredential];
+    }
+    return _authorizedHttpClient;
+}
+
+- (AFOAuthCredential *)apiCredential
+{
+    if (!self.identifier) {
+        return nil;
+    }
+    if (!_apiCredential) {
+        _apiCredential = [AFOAuthCredential retrieveCredentialWithIdentifier:self.identifier];
+    }
+    return _apiCredential;
+}
+
+- (void)setApiCredential:(AFOAuthCredential *)apiCredential
+{
+    _apiCredential = apiCredential;
+    [_authorizedHttpClient setAuthorizationHeaderWithCredential:apiCredential];
+}
+
+- (void)logout
+{
+    [[self class] setLastUsedSession:nil];
+    [[NSNotificationCenter defaultCenter] postNotificationName:SBLogoutNotification object:nil];
+}
+
+- (void)isEmailRegistered:(NSString *)email success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
+{
+    NSMutableURLRequest *req = [self.anonymousHttpClient requestWithMethod:@"POST" path:@"check_email" parameters:@{ @"email": email }];
+    AFHTTPRequestOperation *op = [self.anonymousHttpClient HTTPRequestOperationWithRequest:req success:^(AFHTTPRequestOperation *operation, id responseObject) {
+        success([NSNumber numberWithBool:operation.response.statusCode == 200]);
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        if (operation.response.statusCode == 404) {
+            success([NSNumber numberWithBool:NO]);
+        } else {
+            failure(error);
+        }
+    }];
+    [self.anonymousHttpClient enqueueHTTPRequestOperation:op];
+}
+
+- (void)registerAndLoginUser:(SBUser *)user password:(NSString *)password success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
+{
+    NSMutableDictionary *userData = [[user toNetworkRepresentation][@"user"] mutableCopy];
+    [userData setObject:password forKey:@"password"];
+    [userData setObject:password forKey:@"password_confirmation"];
+    
+    NSMutableURLRequest *req = [self.anonymousHttpClient requestWithMethod:@"POST"
+                                                                      path:[user listPath]
+                                                                parameters:@{ @"user": userData }];
+    SBJSONRequestOperation *op = [[SBJSONRequestOperation alloc] initWithRequest:req];
+    
+//    [op setAuthenticationAgainstProtectionSpaceBlock:^BOOL(NSURLConnection *connection, NSURLProtectionSpace *protectionSpace) {
+//        return YES;
+//    }];
+//    
+//    [op setAuthenticationChallengeBlock:^(NSURLConnection *connection, NSURLAuthenticationChallenge *challenge) {
+//        if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+//            [challenge.sender useCredential:[NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust] forAuthenticationChallenge:challenge];
+//        }
+//    }];
+    
+    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        [user setValuesForKeysWithNetworkDictionary:responseObject];
+        [user save];
+        self.user = user;
+        [self.sessionData save]; // make sure we have an identifier
+        [self getOAuth:user password:password success:^ (id _) {
+            self.sessionData.userKey = [user key];
+            [self.sessionData save];
+            [self syncPushToken];
+            success(user);
+        } failure:failure];
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        NSLog(@"register failed to post user operation=%@ error=%@", operation, error);
+        failure(error);
+    }];
+    [self.anonymousHttpClient enqueueHTTPRequestOperation:op];
+}
+
+- (void)authorizedJSONRequestWithRequestBlock:(NSURLRequest *(^)(void))requestBlock
+                                      success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, id))success
+                                      failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *, id))failure
+{
+    NSURLRequest *req = requestBlock();
+    SBJSONRequestOperation *op = [SBJSONRequestOperation JSONRequestOperationWithRequest:req success:success failure:
+                                  ^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
+                                      if (response.statusCode == 302) {
+                                          // ignore the redirect error
+                                          NSLog(@"ignoring initial 302 because of likely auth error %@", request.URL);
+                                      } else {
+                                          failure(request, response, error, JSON);
+                                      }
+                                  }];
+    [op setRedirectResponseBlock:^NSURLRequest *(NSURLConnection *connection, NSURLRequest *request, NSURLResponse *redirectResponse) {
+        if (redirectResponse) {
+            NSString *url = [request.URL description];
+            NSRange signInRange = [url rangeOfString:@"/users/sign_in" options:0];
+            if (signInRange.location != NSNotFound && signInRange.location + signInRange.length == url.length) {
+                // our access token likely expired, try to re-authenticate with the refresh token
+                [self.authorizedHttpClient authenticateUsingOAuthWithPath:@"/oauth2/token" refreshToken:self.apiCredential.refreshToken success:^(AFOAuthCredential *credential) {
+                    NSLog(@"got re-auth using refreshToken %@ %@", self.apiCredential.refreshToken, request.URL);
+                    
+                    NSParameterAssert(self.identifier != nil); // TODO: remove in production
+                    NSLog(@"previous token: %@", self.apiCredential);
+                    [AFOAuthCredential storeCredential:credential withIdentifier:self.identifier];
+                    self.apiCredential = credential;
+                    NSLog(@"new token: %@", self.apiCredential);
+                    
+                    // retry but don't attach the redirect handler so we don't have an infinite retry loop
+                    NSURLRequest *retryReq = requestBlock();
+                    SBJSONRequestOperation *retry = [SBJSONRequestOperation JSONRequestOperationWithRequest:retryReq success:success failure:failure];
+                    [self.authorizedHttpClient enqueueHTTPRequestOperation:retry];
+                } failure:^(NSError *error) {
+                    NSLog(@"failed to re-auth: %@", error);
+                    [self.class setLastUsedSession:nil];
+                    [[NSNotificationCenter defaultCenter] postNotificationName:SBLoginDidBecomeInvalidNotification object:nil];
+                    failure(nil, nil, error, nil);
+                }];
+                return nil;
+            }
+        }
+        return request;
+    }];
+    [self.authorizedHttpClient enqueueHTTPRequestOperation:op];
+}
+
+- (void)authorizedJSONRequestWithMethod:(NSString *)method path:(NSString *)path paramters:(NSDictionary *)params
+                      success:(void(^)(NSURLRequest *request, NSHTTPURLResponse *response, id json))success
+                      failure:(void(^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id json))failure
+{
+    NSURLRequest * (^block)(void) = ^ {
+        [self.authorizedHttpClient setParameterEncoding:AFJSONParameterEncoding];
+        return [self.authorizedHttpClient requestWithMethod:method path:path parameters:params];
+    };
+    return [self authorizedJSONRequestWithRequestBlock:block success:success failure:failure];
+}
+
+- (void)loginWithEmail:(NSString *)email password:(NSString *)password success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
+{
+    if (!self.user) {
+        self.user = [[SBUser alloc] initWithSession:self];
+        self.user.email = email;
+    }
+    [self.sessionData save]; // generate an identifier for this session
+    [self getOAuth:self.user password:password success:^(id _) {
+        // now that we've got oauth, get the user data
+        NSMutableURLRequest *req = [self.authorizedHttpClient requestWithMethod:@"GET" path:@"/users.json" parameters:@{ }];
+        SBJSONRequestOperation *op = [[SBJSONRequestOperation alloc] initWithRequest:req];
+        [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+            [self.user setValuesForKeysWithNetworkDictionary:responseObject];
+            [self.user save];
+            self.sessionData.userKey = self.user.key;
+            [self.sessionData save];
+            [self syncPushToken];
+            success(self.user);
+        } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+            NSLog(@"login failed to get user %@ %@", operation, error);
+            failure(error);
+        }];
+        [self.authorizedHttpClient enqueueHTTPRequestOperation:op];
+    } failure:^(NSError *err) {
+        NSLog(@"login failed to get oauth %@", err);
+        failure(err);
+    }];
+}
+
+- (void)getOAuth:(SBUser *)user password:(NSString *)password success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
+{
+    [self.authorizedHttpClient authenticateUsingOAuthWithPath:@"/oauth2/token" username:user.email
+                                                     password:password scope:nil success:
+     ^(AFOAuthCredential *credential) {
+         [AFOAuthCredential storeCredential:credential withIdentifier:self.identifier];
+         success(user);
+     } failure:^(NSError *error) {
+         NSError *dumbError = [NSError errorWithDomain:@"" code:400 userInfo:
+                               @{ NSUnderlyingErrorKey: error,
+                                  NSLocalizedDescriptionKey: NSLocalizedString(@"Invalid password", nil) }];
+         failure(dumbError);
+     }];
+}
+
+- (void)syncUser
+{
+    [self authorizedJSONRequestWithMethod:@"GET" path:@"/users.json" paramters:@{} success:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, id JSON) {
+        [self.user setValuesForKeysWithNetworkDictionary:JSON];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+            [self.user save];
+            NSLog(@"successfully got and saved user");
+            [self syncPushToken];
+        });
+    } failure:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, NSError *error, id JSON) {
+        NSLog(@"failed to get current user error=%@ json=%@", error, JSON);
+    }];
+}
+
+- (void)syncPushToken
+{
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didGetPushNotificationToken:) name:SBDidReceiveRemoteNotificationAuthorization object:nil];
+    [[UIApplication sharedApplication] registerForRemoteNotificationTypes:(UIRemoteNotificationTypeAlert | UIRemoteNotificationTypeBadge | UIRemoteNotificationTypeSound)];
+}
+
+- (void)didGetPushNotificationToken:(NSNotification *)note
+{
+    NSString *token = note.userInfo[@"pushToken"];
+    NSString *udid = [SecureUDID UDIDForDomain:@"SBData" usingKey:@"__CHANGEME__"];
+#ifdef DEBUG
+    NSString *environment = @"sandbox";
+#else
+    NSString *environment = @"production";
+#endif
+    NSDictionary *resource = @{ @"device_id": udid, @"token": token, @"type": @"push_device", @"device_type": @"apns", @"environment": environment };
+
+    [self authorizedJSONRequestWithMethod:@"POST" path:@"push_devices" paramters:resource success:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, id JSON) {
+        NSLog(@"successfully saved push token: %@", JSON);
+    } failure:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, NSError *error, id JSON) {
+        NSLog(@"failed to get push token error=%@ json=%@", error, JSON);
+    }];
+}
+
+@end
