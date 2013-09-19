@@ -15,6 +15,7 @@
 #import "SBUser.h"
 #import "SBDataObject.h"
 #import "NSDictionary+Convenience.h"
+#import <AFHTTPRequestOperationLogger/AFHTTPRequestOperationLogger.h>
 
 NSString *SBLoginDidBecomeInvalidNotification           = @"SBLoginDidBecomeInvalidNotification";
 NSString *SBLogoutNotification                          = @"SBLogoutNotification";
@@ -69,6 +70,20 @@ NSString *SBDidReceiveRemoteNotificationAuthorization   = @"SBDidReceiveRemoteNo
     return req;
 }
 
+- (AFHTTPRequestOperation *)HTTPRequestOperationWithRequest:(NSURLRequest *)urlRequest
+                                                    success:(void (^)(AFHTTPRequestOperation *, id))success
+                                                    failure:(void (^)(AFHTTPRequestOperation *, NSError *))failure
+{
+    AFHTTPRequestOperation *op = [super HTTPRequestOperationWithRequest:urlRequest success:success failure:failure];
+    NSNumber *allow = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiAllowUntrustedCertificateKey];
+    if (!allow) {
+        op.allowsInvalidSSLCertificate = NO;
+    } else {
+        op.allowsInvalidSSLCertificate = [allow boolValue];
+    }
+    return op;
+}
+
 @end
 
 //
@@ -111,6 +126,7 @@ NSString *SBDidReceiveRemoteNotificationAuthorization   = @"SBDidReceiveRemoteNo
 @interface SBSession ()
 {
     AFOAuthCredential *_apiCredential;
+    Class _userClass;
 }
 
 @property (nonatomic) AFHTTPClient *anonymousHttpClient;
@@ -130,14 +146,14 @@ NSString *SBDidReceiveRemoteNotificationAuthorization   = @"SBDidReceiveRemoteNo
 
 @implementation SBSession
 
-+ (instancetype)lastUsedSession
++ (instancetype)lastUsedSessionWithUserClass:(Class)userClass
 {
     NSUserDefaults *userDefs = [NSUserDefaults standardUserDefaults];
     NSString *ident = [userDefs stringForKey:@"SBLastSessionIdentifier"];
     NSLog(@"reviving session identifier: %@", ident);
     if (ident != nil) {
-        NSString *email = [self emailAddressForIdentifier:ident];
-        return [self sessionWithEmailAddress:email];
+        NSString *email = [self emailAddressForIdentifier:ident userClass:userClass];
+        return [self sessionWithEmailAddress:email userClass:userClass];
     }
     return nil;
 }
@@ -164,22 +180,22 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
     }
 }
 
-+ (instancetype)sessionWithEmailAddress:(NSString *)email
++ (instancetype)sessionWithEmailAddress:(NSString *)email userClass:(__unsafe_unretained Class)klass
 {
     if (!email) {
         return nil;
     }
     if (!_sessionByEmailAddress[email]) {
-        _sessionByEmailAddress[email] = [[self alloc] initWithEmailAddress:email];
+        _sessionByEmailAddress[email] = [[self alloc] initWithEmailAddress:email userClass:klass];
     }
     return _sessionByEmailAddress[email];
 }
 
-+ (NSString *)emailAddressForIdentifier:(NSString *)ident
++ (NSString *)emailAddressForIdentifier:(NSString *)ident userClass:(Class)userClass
 {
     SBSessionData *meta = [[SBSessionData meta] findByKey:ident];
     if (meta) {
-        SBUser *user = [[SBUser meta] findByKey:meta.userKey];
+        SBUser *user = [[userClass meta] findByKey:meta.userKey];
         if (user) {
             return user.email;
         }
@@ -187,15 +203,17 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
     return nil;
 }
 
-- (id)initWithIdentifier:(NSString *)identifier
+- (id)initWithIdentifier:(NSString *)identifier userClass:(Class)userClass
 {
     self = [super init];
+    [[AFHTTPRequestOperationLogger sharedLogger] startLogging];
     if (self) {
+        _userClass = userClass;
         _apiMountPointSpec = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiBaseURLKey];
         _apiVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiVersionKey];
         if (identifier != nil) {
             _sessionData = [[SBSessionData meta] findByKey:identifier];
-            _user = [[SBUser meta] findByKey:_sessionData.userKey];
+            _user = [[userClass meta] findByKey:_sessionData.userKey];
         } else {
             // fresh session
             _sessionData = [[SBSessionData alloc] init];
@@ -204,12 +222,13 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
     return self;
 }
 
-- (id)initWithEmailAddress:(NSString *)emailAddy
+- (id)initWithEmailAddress:(NSString *)emailAddy userClass:(Class)userClass
 {
-    self = [self initWithIdentifier:nil];
+    self = [self initWithIdentifier:nil userClass:userClass];
+    [[AFHTTPRequestOperationLogger sharedLogger] startLogging];
     if (self && emailAddy != nil) {
         // try to find an existingSBUser with that email
-        SBUser *user = [[SBUser meta] findOne:@{ @"email": emailAddy }];
+        SBUser *user = [[userClass meta] findOne:@{ @"email": emailAddy }];
         NSLog(@"user: %@", user);
         if (user != nil) {
             // now try to find an existing session with that data
@@ -284,9 +303,9 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
 {
     if (!_authorizedHttpClient) {
         NSURL *baseUrl = [NSURL URLWithString:[NSString stringWithFormat:self.apiMountPointSpec, self.apiVersion]];
-        _authorizedHttpClient = [[SBOAuth2Client alloc] initWithBaseURL:baseUrl
-                                                               clientID:[[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiIdKey]
-                                                                 secret:[[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiSecretKey]];
+        NSString *apiKey = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiIdKey];
+        NSString *apiSecret = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiSecretKey];
+        _authorizedHttpClient = [[SBOAuth2Client alloc] initWithBaseURL:baseUrl clientID:apiKey secret:apiSecret];
     }
     if (self.apiCredential) {
         [_authorizedHttpClient setAuthorizationHeaderWithCredential:self.apiCredential];
@@ -354,6 +373,7 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
 //    }];
     
     [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        NSLog(@"successfully registered user - now attempting to get oauth");
         [user setValuesForKeysWithNetworkDictionary:responseObject];
         [user save];
         self.user = user;
@@ -432,13 +452,14 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
 {
     if (!self.user) {
-        self.user = [[SBUser alloc] initWithSession:self];
+        self.user = [[_userClass alloc] initWithSession:self];
         self.user.email = email;
     }
     [self.sessionData save]; // generate an identifier for this session
     [self getOAuth:self.user password:password success:^(id _) {
         // now that we've got oauth, get the user data
-        NSMutableURLRequest *req = [self.authorizedHttpClient requestWithMethod:@"GET" path:@"/users.json" parameters:@{ }];
+        NSMutableURLRequest *req = [self.authorizedHttpClient requestWithMethod:@"GET" path:[self.user listPath] parameters:@{ }];
+        [req addValue:@"application/json" forHTTPHeaderField:@"Accept"];
         SBJSONRequestOperation *op = [[SBJSONRequestOperation alloc] initWithRequest:req];
         [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
             [self.user setValuesForKeysWithNetworkDictionary:responseObject];
@@ -448,12 +469,11 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
             [self syncPushToken];
             success(self.user);
         } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-            NSLog(@"login failed to get user %@ %@", operation, error);
+            NSLog(@"operation: %@", operation.request.allHTTPHeaderFields);
             failure(error);
         }];
         [self.authorizedHttpClient enqueueHTTPRequestOperation:op];
     } failure:^(NSError *err) {
-        NSLog(@"login failed to get oauth %@", err);
         failure(err);
     }];
 }
@@ -466,6 +486,7 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
          [AFOAuthCredential storeCredential:credential withIdentifier:self.identifier];
          success(user);
      } failure:^(NSError *error) {
+         NSLog(@"oauth crapped %@", error);
          NSError *dumbError = [NSError errorWithDomain:@"" code:400 userInfo:
                                @{ NSUnderlyingErrorKey: error,
                                   NSLocalizedDescriptionKey: NSLocalizedString(@"Invalid password", nil) }];

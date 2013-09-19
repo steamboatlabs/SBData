@@ -54,10 +54,10 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 @property (nonatomic, readonly) NSString *identifier;
 
 //- (id)initWithEmailAddress:(NSString *)email;
-+ (instancetype)sessionWithEmailAddress:(NSString *)email;
++ (instancetype)sessionWithEmailAddress:(NSString *)email userClass:(Class)klass;
 
 + (void)setLastUsedSession:(SBSession *)session;
-+ (instancetype)lastUsedSession;
++ (instancetype)lastUsedSessionWithUserClass:(Class)userClass;
 
 - (void)setPreferenceValue:(id)value forKey:(id<NSCopying>)key;
 - (id)preferenceValueForKey:(id<NSCopying>)key;

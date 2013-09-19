@@ -106,4 +106,5 @@ Pod::Spec.new do |s|
   s.dependency 'AFOAuth2Client', '~> 0.1.1'
   s.dependency 'ISO8601DateFormatter', '~> 0.6'
   s.dependency 'SecureUDID', '~> 1.1'
+  s.dependency 'AFHTTPRequestOperationLogger', '~> 1.0.0'
 end

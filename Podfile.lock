@@ -1,4 +1,6 @@
 PODS:
+  - AFHTTPRequestOperationLogger (1.0.0):
+    - AFNetworking (~> 1.0)
   - AFNetworking (1.1.0)
   - AFOAuth2Client (0.1.1):
     - AFNetworking (~> 1.0)
@@ -13,6 +15,7 @@ PODS:
   - SecureUDID (1.1)
 
 DEPENDENCIES:
+  - AFHTTPRequestOperationLogger
   - AFNetworking (~> 1.1.0)
   - AFOAuth2Client (~> 0.1.0)
   - FMDB (~> 2.1)
@@ -22,6 +25,7 @@ DEPENDENCIES:
   - SecureUDID (~> 1.1)
 
 SPEC CHECKSUMS:
+  AFHTTPRequestOperationLogger: c6ad1f4bfd64fc9a8dbe94c8489420d195f15cb0
   AFNetworking: 761a418233d280c1e0580bcb76ff9cb4c3073d17
   AFOAuth2Client: 039596f19e8a4bdd852cb3fc44ddbe45e12c290a
   FMDB: 2769004a271eae0bbd8bd4f45a3f2acfd0d3df0e
