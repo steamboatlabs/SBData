@@ -100,6 +100,7 @@ Pod::Spec.new do |s|
 
   # Finally, specify any Pods that this Pod depends on.
   #
+  s.dependency 'sqlite3', '~> 3.8.0.2'
   s.dependency 'JSONKit', '~> 1.5pre'
   s.dependency 'FMDB', '~> 2.1'
   s.dependency 'AFNetworking', '~> 1.3.2' 

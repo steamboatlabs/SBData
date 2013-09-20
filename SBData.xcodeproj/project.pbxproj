@@ -34,7 +34,6 @@
 		153BBC1A17DFB8020071E63B /* SBUser.m in Sources */ = {isa = PBXBuildFile; fileRef = 153BBC1917DFB8020071E63B /* SBUser.m */; };
 		153BBC1F17DFBA810071E63B /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 153BBC1E17DFBA810071E63B /* SystemConfiguration.framework */; };
 		153BBC2117DFBAB00071E63B /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 153BBC2017DFBAB00071E63B /* MobileCoreServices.framework */; };
-		153BBC2617DFBC3A0071E63B /* sqlite3.c in Sources */ = {isa = PBXBuildFile; fileRef = 153BBC2317DFBC3A0071E63B /* sqlite3.c */; };
 		153BBC7F17DFC4F40071E63B /* SBData.h in Headers */ = {isa = PBXBuildFile; fileRef = 15E038CA17DFB5DB0009C3EC /* SBData.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		153BBCA217DFC8EF0071E63B /* SBTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 153BBBFC17DFB6C50071E63B /* SBTypes.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		153BBCA317DFC8EF0071E63B /* SBModel.h in Headers */ = {isa = PBXBuildFile; fileRef = 153BBBFE17DFB6C50071E63B /* SBModel.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -48,7 +47,6 @@
 		153BBCAB17DFC8EF0071E63B /* NSDictionary+Convenience.h in Headers */ = {isa = PBXBuildFile; fileRef = 153BBC1217DFB7920071E63B /* NSDictionary+Convenience.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		153BBCAC17DFC8EF0071E63B /* NSDictionaryOfParametersFromURL.h in Headers */ = {isa = PBXBuildFile; fileRef = 153BBC1517DFB7C30071E63B /* NSDictionaryOfParametersFromURL.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		153BBCAD17DFC8EF0071E63B /* SBData-Prefix.pch in Headers */ = {isa = PBXBuildFile; fileRef = 15E038C917DFB5DB0009C3EC /* SBData-Prefix.pch */; settings = {ATTRIBUTES = (Public, ); }; };
-		153BBCAF17DFCBDF0071E63B /* sqlite3.h in Headers */ = {isa = PBXBuildFile; fileRef = 153BBC2417DFBC3A0071E63B /* sqlite3.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		153BBCB317DFCD000071E63B /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 153BBCB017DFCCBD0071E63B /* Security.framework */; };
 		153BBCB417DFCD150071E63B /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 153BBCB017DFCCBD0071E63B /* Security.framework */; };
 		153BBCB517DFCD190071E63B /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 153BBC2017DFBAB00071E63B /* MobileCoreServices.framework */; };
@@ -118,9 +116,6 @@
 		153BBC1917DFB8020071E63B /* SBUser.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SBUser.m; sourceTree = "<group>"; };
 		153BBC1E17DFBA810071E63B /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
 		153BBC2017DFBAB00071E63B /* MobileCoreServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MobileCoreServices.framework; path = System/Library/Frameworks/MobileCoreServices.framework; sourceTree = SDKROOT; };
-		153BBC2317DFBC3A0071E63B /* sqlite3.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = sqlite3.c; sourceTree = "<group>"; };
-		153BBC2417DFBC3A0071E63B /* sqlite3.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sqlite3.h; sourceTree = "<group>"; };
-		153BBC2517DFBC3A0071E63B /* sqlite3ext.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = sqlite3ext.h; sourceTree = "<group>"; };
 		153BBCB017DFCCBD0071E63B /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
 		15E038C217DFB5DB0009C3EC /* libSBData.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libSBData.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		15E038C517DFB5DB0009C3EC /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -167,16 +162,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		153BBC2217DFBC3A0071E63B /* sqlite-3.7.16.1 */ = {
-			isa = PBXGroup;
-			children = (
-				153BBC2317DFBC3A0071E63B /* sqlite3.c */,
-				153BBC2417DFBC3A0071E63B /* sqlite3.h */,
-				153BBC2517DFBC3A0071E63B /* sqlite3ext.h */,
-			);
-			path = "sqlite-3.7.16.1";
-			sourceTree = "<group>";
-		};
 		15E038B917DFB5DB0009C3EC = {
 			isa = PBXGroup;
 			children = (
@@ -214,7 +199,6 @@
 		15E038C717DFB5DB0009C3EC /* SBData */ = {
 			isa = PBXGroup;
 			children = (
-				153BBC2217DFBC3A0071E63B /* sqlite-3.7.16.1 */,
 				15E038CA17DFB5DB0009C3EC /* SBData.h */,
 				153BBBFC17DFB6C50071E63B /* SBTypes.h */,
 				153BBBFD17DFB6C50071E63B /* SBTypes.m */,
@@ -288,7 +272,6 @@
 				153BBCAA17DFC8EF0071E63B /* NSObject+ClassProperties.h in Headers */,
 				153BBCAB17DFC8EF0071E63B /* NSDictionary+Convenience.h in Headers */,
 				153BBCAC17DFC8EF0071E63B /* NSDictionaryOfParametersFromURL.h in Headers */,
-				153BBCAF17DFCBDF0071E63B /* sqlite3.h in Headers */,
 				153BBCAD17DFC8EF0071E63B /* SBData-Prefix.pch in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -460,7 +443,6 @@
 				153BBC1417DFB7920071E63B /* NSDictionary+Convenience.m in Sources */,
 				153BBC1717DFB7C30071E63B /* NSDictionaryOfParametersFromURL.m in Sources */,
 				153BBC1A17DFB8020071E63B /* SBUser.m in Sources */,
-				153BBC2617DFBC3A0071E63B /* sqlite3.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

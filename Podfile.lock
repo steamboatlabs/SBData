@@ -13,6 +13,9 @@ PODS:
   - JSONKit (1.5pre)
   - PDKeychainBindingsController (0.0.1)
   - SecureUDID (1.1)
+  - sqlite3 (3.8.0.2):
+    - sqlite3/common
+  - sqlite3/common (3.8.0.2)
 
 DEPENDENCIES:
   - AFHTTPRequestOperationLogger
@@ -23,6 +26,7 @@ DEPENDENCIES:
   - JSONKit (~> 1.5pre)
   - PDKeychainBindingsController (~> 0.0.1)
   - SecureUDID (~> 1.1)
+  - sqlite3 (~> 3.8.0.2)
 
 SPEC CHECKSUMS:
   AFHTTPRequestOperationLogger: c6ad1f4bfd64fc9a8dbe94c8489420d195f15cb0
@@ -33,5 +37,6 @@ SPEC CHECKSUMS:
   JSONKit: 409734ab3407fce90ef7eaa95d7168f38d9a6601
   PDKeychainBindingsController: 463c207f8726e4aaec1ec20fd1876082ee86cb0a
   SecureUDID: f29e17c7fc56968b6c42ce328b901a9fec87bb44
+  sqlite3: da2547a00213287224486db2893bb9c181c6f8d2
 
 COCOAPODS: 0.19.1

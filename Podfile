@@ -1,4 +1,5 @@
 platform :ios, '6.0'
+pod 'sqlite3', '~> 3.8.0.2'
 pod 'JSONKit', '~> 1.5pre'
 pod 'FMDB', '~> 2.1'
 pod 'AFNetworking', '~> 1.1.0'
