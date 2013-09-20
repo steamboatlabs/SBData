@@ -55,6 +55,7 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 
 //- (id)initWithEmailAddress:(NSString *)email;
 + (instancetype)sessionWithEmailAddress:(NSString *)email userClass:(Class)klass;
++ (instancetype)anonymousSession;
 
 + (void)setLastUsedSession:(SBSession *)session;
 + (instancetype)lastUsedSessionWithUserClass:(Class)userClass;
@@ -65,6 +66,9 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 - (id(^)(SBModel *))objectDecorator;
 - (SBModelQueryBuilder *)queryBuilderForClass:(Class)modelCls; // a query builder which preconfigures the decorator and userKey parameter
 - (SBModelQueryBuilder *)unsafeQueryBuilderForClass:(Class)modelCls;
+
+// called by this class on all JSON responses from the server.
+- (id)deserializeJSON:(id)JSON;
 
 // LOGIN AND REGISTRATION ----------------------------------------------------------------------------------------------
 
@@ -93,6 +97,10 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 - (void)authorizedJSONRequestWithMethod:(NSString *)method path:(NSString *)path paramters:(NSDictionary *)params
                                 success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *httpResponse, id JSON))success
                                 failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *httpResponse, NSError *error, id JSON))failure;
+
+- (void)anonymousJSONRequestWithMethod:(NSString *)method path:(NSString *)path parameters:(NSDictionary *)params
+                               success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *httpResponse, id JSON))success
+                               failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *httpResponse, NSError *error, id JSON))failure;
 
 // success: NSNumber - bool
 - (void)isEmailRegistered:(NSString *)email success:(SBSuccessBlock)success failure:(SBErrorBlock)failure;

@@ -20,7 +20,7 @@
 + (NSDictionary *)propertyToNetworkKeyMapping
 {
     return [[super propertyToNetworkKeyMapping] dictionaryByMergingWithDictionary:@{
-                @"email":                   @"email",
+                @"email": @"email",
             }];
 }
 

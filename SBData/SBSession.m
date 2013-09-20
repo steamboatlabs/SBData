@@ -191,6 +191,11 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
     return _sessionByEmailAddress[email];
 }
 
++ (instancetype)anonymousSession
+{
+    return [[self alloc] initWithIdentifier:nil userClass:[SBUser class]];
+}
+
 + (NSString *)emailAddressForIdentifier:(NSString *)ident userClass:(Class)userClass
 {
     SBSessionData *meta = [[SBSessionData meta] findByKey:ident];
@@ -258,6 +263,11 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
 - (NSString *)identifier
 {
     return _sessionData.key;
+}
+
+- (id)deserializeJSON:(id)JSON
+{
+    return JSON;
 }
 
 - (id (^)(SBModel *))objectDecorator
@@ -391,12 +401,32 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
     [self.anonymousHttpClient enqueueHTTPRequestOperation:op];
 }
 
+- (void)anonymousJSONRequestWithMethod:(NSString *)method
+                                  path:(NSString *)path
+                            parameters:(NSDictionary *)params
+                               success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, id))success
+                               failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *, id))failure
+{
+    [self.anonymousHttpClient setParameterEncoding:AFJSONParameterEncoding];
+    NSURLRequest *req = [self.anonymousHttpClient requestWithMethod:method path:path parameters:params];
+    SBJSONRequestOperation *op = [SBJSONRequestOperation JSONRequestOperationWithRequest:req success:
+                                  ^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
+                                      success(request, response, [self deserializeJSON:JSON]);
+                                  } failure:^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
+                                      failure(request, response, error, JSON);
+                                  }];
+    [self.anonymousHttpClient enqueueHTTPRequestOperation:op];
+}
+
 - (void)authorizedJSONRequestWithRequestBlock:(NSURLRequest *(^)(void))requestBlock
                                       success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, id))success
                                       failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *, id))failure
 {
     NSURLRequest *req = requestBlock();
-    SBJSONRequestOperation *op = [SBJSONRequestOperation JSONRequestOperationWithRequest:req success:success failure:
+    SBJSONRequestOperation *op = [SBJSONRequestOperation JSONRequestOperationWithRequest:req success:
+      ^(NSURLRequest *req, NSHTTPURLResponse *resp, id JSON) {
+          success(req, resp, [self deserializeJSON:JSON]);
+      } failure:
       ^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
           if (response.statusCode == 401) {
               // attempt to re-up the auth token using the refresh token against a 401
@@ -423,6 +453,36 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
               failure(request, response, error, JSON);
           }
       }];
+    [op setRedirectResponseBlock:^NSURLRequest *(NSURLConnection *connection, NSURLRequest *request, NSURLResponse *redirectResponse) {
+        if (redirectResponse) {
+            NSString *url = [request.URL description];
+            NSRange signInRange = [url rangeOfString:@"/users/sign_in" options:0];
+            if (signInRange.location != NSNotFound && signInRange.location + signInRange.length == url.length) {
+                // our access token likely expired, try to re-authenticate with the refresh token
+                [self.authorizedHttpClient authenticateUsingOAuthWithPath:@"/oauth2/token" refreshToken:self.apiCredential.refreshToken success:^(AFOAuthCredential *credential) {
+                    NSLog(@"got re-auth using refreshToken %@ %@", self.apiCredential.refreshToken, request.URL);
+                    
+                    NSParameterAssert(self.identifier != nil); // TODO: remove in production
+                    NSLog(@"previous token: %@", self.apiCredential);
+                    [AFOAuthCredential storeCredential:credential withIdentifier:self.identifier];
+                    self.apiCredential = credential;
+                    NSLog(@"new token: %@", self.apiCredential);
+                    
+                    // retry but don't attach the redirect handler so we don't have an infinite retry loop
+                    NSURLRequest *retryReq = requestBlock();
+                    SBJSONRequestOperation *retry = [SBJSONRequestOperation JSONRequestOperationWithRequest:retryReq success:success failure:failure];
+                    [self.authorizedHttpClient enqueueHTTPRequestOperation:retry];
+                } failure:^(NSError *error) {
+                    NSLog(@"failed to re-auth: %@", error);
+                    [self.class setLastUsedSession:nil];
+                    [[NSNotificationCenter defaultCenter] postNotificationName:SBLoginDidBecomeInvalidNotification object:nil];
+                    failure(nil, nil, error, nil);
+                }];
+                return nil;
+            }
+        }
+        return request;
+    }];
     [self.authorizedHttpClient enqueueHTTPRequestOperation:op];
 }
 
