@@ -9,6 +9,7 @@
 #import <Foundation/Foundation.h>
 #import "SBModel.h"
 
+// These keys are pulled from the application's Info.plist file
 #define SBApiBaseURLKey @"SBAPIBaseURLSpec"
 #define SBApiVersionKey @"SBAPIVersion"
 #define SBApiIdKey @"SBApiClientId"
@@ -29,6 +30,10 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 @class AFOAuthCredential;
 @class SBDataObject;
 
+// Stores information about a current session. Can store preference values similar to how
+// NSUserDefaults does - except it will be tied to an individual session instead of visible
+// app-wide. Sessions are specific to a user. Each SBSession instance will have a corresponding
+// SBSessionData.
 @interface SBSessionData : SBModel
 
 @property (nonatomic) NSString *userKey;
@@ -40,10 +45,16 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 
 @end
 
-
+// SBSession is the REST adapter and session store for a user. It facilitates communication
+// with a REST API, issues authenticated (and unauthenticated) requests, handle's login and
+// registration, persists session data and can query for user-namespaced data, among other things
 @interface SBSession : NSObject
 
+// The current user. May be nil if this is an anonymous session or the user hasn't yet logged
+// in or registered
 @property (nonatomic, readonly) SBUser *user;
+
+// 
 @property (nonatomic, readonly) AFOAuthCredential *apiCredential;
 @property (nonatomic, readonly) NSString *apiMountPointSpec;
 @property (nonatomic, readonly) NSString *apiVersion;
@@ -53,7 +64,7 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 
 @property (nonatomic, readonly) NSString *identifier;
 
-//- (id)initWithEmailAddress:(NSString *)email;
+
 + (instancetype)sessionWithEmailAddress:(NSString *)email userClass:(Class)klass;
 + (instancetype)anonymousSession;
 
