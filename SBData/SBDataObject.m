@@ -462,6 +462,9 @@
 
 - (void)insertObject:(SBDataObject *)objectToAdd atIndex:(NSUInteger)index
 {
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillBeginUpdating:)]) {
+        [self.delegate resultSetWillBeginUpdating:self];
+    }
     if (_allObjects.count) {
         NSMutableIndexSet *removeSet = [NSMutableIndexSet indexSet];
         [_allObjects enumerateObjectsUsingBlock:^(id obj, NSUInteger idx, BOOL *stop) {
@@ -469,25 +472,39 @@
                 [removeSet addIndex:idx];
             }
         }];
-        [self.delegate resultSetWillBeginUpdating:self];
+        
         [_allObjects removeObjectsAtIndexes:removeSet];
-        [self.delegate resultSet:self didRemoveObjectAtIndexes:removeSet];
+        
+        if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didRemoveObjectAtIndexes:)]) {
+            [self.delegate resultSet:self didRemoveObjectAtIndexes:removeSet];
+        }
+        
         [_allObjects insertObject:objectToAdd atIndex:index];
-        [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndex:index]];
-        [self.delegate resultSetWillEndUpdating:self];
+        
+        if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didInsertObjectAtIndexes:)]) {
+            [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndex:index]];
+        }
     } else {
-         // just reload
-        [self.delegate resultSetWillBeginUpdating:self];
-        [self.delegate resultSet:self didRemoveObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, [self count])]];
+        if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didRemoveObjectAtIndexes:)]) {
+            [self.delegate resultSet:self didRemoveObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, [self count])]];
+        }
+        
         [self reload];
-        [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, [self count])]];
+        
+        if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didInsertObjectAtIndexes:)]) {
+            [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, [self count])]];
+        }
+    }
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillEndUpdating:)]) {
         [self.delegate resultSetWillEndUpdating:self];
     }
 }
 
 - (void)refresh
 {
-    [self.delegate resultSetWillReload:self];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillReload:)]) {
+        [self.delegate resultSetWillReload:self];
+    }
     [_session authorizedJSONRequestWithMethod:@"GET" path:[self path] paramters:@{ } success:^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         // pass
 //        NSLog(@"got json: %@", JSON);
@@ -496,13 +513,17 @@
             NSArray *replacement = [self _processPage:JSON];
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self _reset:replacement];
-                [self.delegate resultSetDidReload:self];
+                if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetDidReload:)]) {
+                    [self.delegate resultSetDidReload:self];
+                }
             });
         });
     } failure:^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
         // pass
         NSLog(@"got error: %@ JSON: %@", error, JSON);
-        [self.delegate resultSet:self didFailToReload:error];
+        if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didFailToReload:)]) {
+            [self.delegate resultSet:self didFailToReload:error];
+        }
     }];
 }
 
@@ -527,20 +548,28 @@
                     startOfNew++;
                 }
                 NSArray *additions;
-                [self.delegate resultSetWillBeginUpdating:self];
+                if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillBeginUpdating:)]) {
+                    [self.delegate resultSetWillBeginUpdating:self];
+                }
                 if (foundExisting == NSNotFound) {
                     SBDataObjectResultSetInterstitialPlaceholder *placeholder = [[SBDataObjectResultSetInterstitialPlaceholder alloc] init];
                     placeholder.before = [(SBDataObject *)newObjects[0] objId];
                     [_allObjects addObject:placeholder];
-                    [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndex:_allObjects.count - 1]];
+                    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didInsertObjectAtIndexes:)]) {
+                        [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndex:_allObjects.count - 1]];
+                    }
                     additions = newObjects;
                 } else {
                     additions = [newObjects objectsAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(startOfNew, newObjects.count - 1)]];
                 }
                 NSRange addRange = NSMakeRange([self count] - 1, additions.count);
                 [_allObjects addObjectsFromArray:additions];
-                [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:addRange]];
-                [self.delegate resultSetWillEndUpdating:self];
+                if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didInsertObjectAtIndexes:)]) {
+                    [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:addRange]];
+                }
+                if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillEndUpdating:)]) {
+                    [self.delegate resultSetWillEndUpdating:self];
+                }
             });
         });
     } failure:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, NSError *error, id JSON) {
@@ -553,7 +582,9 @@
     if (!_beforeParams) {
         return;
     }
-    [self.delegate resultSetWillLoadMore:self];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillLoadMore:)]) {
+        [self.delegate resultSetWillLoadMore:self];
+    }
     [_session authorizedJSONRequestWithMethod:@"GET" path:[self path] paramters:_beforeParams success:^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         // pass
 //        NSLog(@"got next page %@", JSON);
@@ -566,14 +597,18 @@
                 } else if (self.query.sortOrder == SBModelAscending) {
                     [self _prepend:additions];
                 }
-                [self.delegate resultSetDidLoadMore:self];
+                if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetDidLoadMore:)]) {
+                    [self.delegate resultSetDidLoadMore:self];
+                }
             });
         });
 //        [self.delegate resultSetDidLoadMore:self]; -- don't do this here 
     } failure:^(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error, id JSON) {
         // pass
         NSLog(@"failed to get next page %@", error);
-        [self.delegate resultSet:self didFailToLoadMore:error];
+        if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didFailToLoadMore:)]) {
+            [self.delegate resultSet:self didFailToLoadMore:error];
+        }
     }];
 }
 
@@ -592,32 +627,57 @@
 
 - (void)_reset:(NSArray *)replacement
 {
-    [self.delegate resultSetWillBeginUpdating:self];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillBeginUpdating:)]) {
+        [self.delegate resultSetWillBeginUpdating:self];
+    }
     NSRange removeRange = NSMakeRange(0, [self count]);
     [_allObjects removeAllObjects];
-    [self.delegate resultSet:self didRemoveObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:removeRange]];
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didRemoveObjectAtIndexes:)]) {
+        [self.delegate resultSet:self didRemoveObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:removeRange]];
+    }
+    
     [_allObjects setArray:replacement];
-    [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _allObjects.count)]];
-    [self.delegate resultSetWillEndUpdating:self];
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didInsertObjectAtIndexes:)]) {
+        [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, _allObjects.count)]];
+    }
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillEndUpdating:)]) {
+        [self.delegate resultSetWillEndUpdating:self];
+    }
 }
 
 - (void)_append:(NSArray *)additions
 {
-    [self.delegate resultSetWillBeginUpdating:self];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillBeginUpdating:)]) {
+        [self.delegate resultSetWillBeginUpdating:self];
+    }
     NSRange addRange = NSMakeRange([self count] - 1, additions.count);
     [_allObjects addObjectsFromArray:additions];
-    [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:addRange]];
-    [self.delegate resultSetWillEndUpdating:self];
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didInsertObjectAtIndexes:)]) {
+        [self.delegate resultSet:self didInsertObjectAtIndexes:[NSIndexSet indexSetWithIndexesInRange:addRange]];
+    }
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillEndUpdating:)]) {
+        [self.delegate resultSetWillEndUpdating:self];
+    }
 }
 
 - (void)_prepend:(NSArray *)additions
 {
-    [self.delegate resultSetWillBeginUpdating:self];
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillBeginUpdating:)]) {
+        [self.delegate resultSetWillBeginUpdating:self];
+    }
     NSRange addRange = NSMakeRange(0, additions.count);
     NSIndexSet *insertIndexes = [NSIndexSet indexSetWithIndexesInRange:addRange];
     [_allObjects insertObjects:additions atIndexes:insertIndexes];
-    [self.delegate resultSet:self didInsertObjectAtIndexes:insertIndexes];
-    [self.delegate resultSetWillEndUpdating:self];
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSet:didInsertObjectAtIndexes:)]) {
+        [self.delegate resultSet:self didInsertObjectAtIndexes:insertIndexes];
+    }
+    if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetWillEndUpdating:)]) {
+        [self.delegate resultSetWillEndUpdating:self];
+    }
 }
 
 - (SBDataObject *)_decorateObject:(SBDataObject *)obj
