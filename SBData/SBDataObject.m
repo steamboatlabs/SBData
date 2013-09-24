@@ -614,8 +614,13 @@
 
 #define SERVER_PAGE_SIZE 20
 
-- (void)_setBeforeParams:(NSDictionary *)JSON
+- (void)_setBeforeParams:(id)JSON
 {
+    if (![JSON isKindOfClass:[NSDictionary class]])
+    {
+        // this is not a paginated resource
+        return;
+    }
     // if we got a full page then there might be another page. otherwise give up
     if ([JSON[@"total"] isKindOfClass:[NSNumber class]] && [JSON[@"total"] intValue] == SERVER_PAGE_SIZE
             && [JSON[@"prev_page"] isKindOfClass:[NSString class]]) {
