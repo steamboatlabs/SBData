@@ -22,6 +22,8 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		1538D31E17F1CB2F00B41E4F /* SBDataObjectTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 1538D31C17F1CB2F00B41E4F /* SBDataObjectTypes.h */; };
+		1538D31F17F1CB2F00B41E4F /* SBDataObjectTypes.m in Sources */ = {isa = PBXBuildFile; fileRef = 1538D31D17F1CB2F00B41E4F /* SBDataObjectTypes.m */; };
 		153BBC0917DFB6C50071E63B /* SBTypes.m in Sources */ = {isa = PBXBuildFile; fileRef = 153BBBFD17DFB6C50071E63B /* SBTypes.m */; };
 		153BBC0A17DFB6C50071E63B /* SBModel.m in Sources */ = {isa = PBXBuildFile; fileRef = 153BBBFF17DFB6C50071E63B /* SBModel.m */; };
 		153BBC0B17DFB6C50071E63B /* SBModelQuery.m in Sources */ = {isa = PBXBuildFile; fileRef = 153BBC0217DFB6C50071E63B /* SBModelQuery.m */; };
@@ -93,6 +95,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1538D31C17F1CB2F00B41E4F /* SBDataObjectTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SBDataObjectTypes.h; sourceTree = "<group>"; };
+		1538D31D17F1CB2F00B41E4F /* SBDataObjectTypes.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SBDataObjectTypes.m; sourceTree = "<group>"; };
 		153BBBFC17DFB6C50071E63B /* SBTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SBTypes.h; sourceTree = "<group>"; };
 		153BBBFD17DFB6C50071E63B /* SBTypes.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SBTypes.m; sourceTree = "<group>"; };
 		153BBBFE17DFB6C50071E63B /* SBModel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SBModel.h; sourceTree = "<group>"; };
@@ -211,6 +215,8 @@
 				153BBC0417DFB6C50071E63B /* SBModelQueryTerm.m */,
 				153BBC0517DFB6C50071E63B /* SBDataObject.h */,
 				153BBC0617DFB6C50071E63B /* SBDataObject.m */,
+				1538D31C17F1CB2F00B41E4F /* SBDataObjectTypes.h */,
+				1538D31D17F1CB2F00B41E4F /* SBDataObjectTypes.m */,
 				153BBC0717DFB6C50071E63B /* SBSession.h */,
 				153BBC0817DFB6C50071E63B /* SBSession.m */,
 				153BBC1817DFB8020071E63B /* SBUser.h */,
@@ -273,6 +279,7 @@
 				153BBCAB17DFC8EF0071E63B /* NSDictionary+Convenience.h in Headers */,
 				153BBCAC17DFC8EF0071E63B /* NSDictionaryOfParametersFromURL.h in Headers */,
 				153BBCAD17DFC8EF0071E63B /* SBData-Prefix.pch in Headers */,
+				1538D31E17F1CB2F00B41E4F /* SBDataObjectTypes.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -443,6 +450,7 @@
 				153BBC1417DFB7920071E63B /* NSDictionary+Convenience.m in Sources */,
 				153BBC1717DFB7C30071E63B /* NSDictionaryOfParametersFromURL.m in Sources */,
 				153BBC1A17DFB8020071E63B /* SBUser.m in Sources */,
+				1538D31F17F1CB2F00B41E4F /* SBDataObjectTypes.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

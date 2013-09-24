@@ -11,6 +11,9 @@
 #import <JSONKit/JSONKit.h>
 #import "SBUser.h"
 #import "NSDictionaryOfParametersFromURL.h"
+#import "NSObject+ClassProperties.h"
+#import "SBModel_SBModelPrivate.h"
+#import "SBDataObjectTypes.h"
 
 
 @interface SBDataObject ()
@@ -122,10 +125,44 @@
     for (NSString *localKey in keyMap) {
         id localValue = [self valueForKey:localKey];
         if (localValue != nil) {
-            ret[keyMap[localKey]] = [self valueForKey:localKey];
+            id<SBNetworkFieldConverting> converter = [self.class networkFieldConverterForField:localKey];
+            localValue = converter != nil ? [converter toNetwork:localValue] : localValue;
+            ret[keyMap[localKey]] = localValue;
         }
     }
     return ret;
+}
+
++ (id<SBNetworkFieldConverting>)networkFieldConverterForField:(NSString *)fieldName
+{
+    NSDictionary *defaultConverters = objc_getAssociatedObject(self, @"networkFieldConverters");
+    if (!defaultConverters) {
+        NSMutableDictionary *converters = [[NSMutableDictionary alloc] init];
+        // look at the properties of this class and attempt to set sane default
+        // converters for the known properties
+        NSArray *props = [self allFieldNames];
+        for (NSString *key in props) {
+            Class kls = [self classForPropertyName:key];
+            if (kls && [kls conformsToProtocol:@protocol(SBField)]) {
+                if ([kls isSubclassOfClass:[SBInteger class]]){
+                    [converters setObject:[SBIntegerConverter new] forKey:key];
+                }
+                else if ([kls isSubclassOfClass:[SBString class]]) {
+                    [converters setObject:[SBStringConverter new] forKey:key];
+                }
+                else if ([kls isSubclassOfClass:[SBFloat class]]) {
+                    [converters setObject:[SBFloatConverter new] forKey:key];
+                }
+                else if ([kls isSubclassOfClass:[SBDate class]]) {
+                    [converters setObject:[SBISO8601DateConverter new] forKey:key];
+                }
+            }
+        }
+        defaultConverters = [converters copy];
+        objc_setAssociatedObject(self, @"networkFieldConverters",
+                                 defaultConverters, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return [defaultConverters objectForKey:fieldName];
 }
 
 - (void)setValuesForKeysWithNetworkDictionary:(NSDictionary *)keyedValues
@@ -134,6 +171,8 @@
     for (NSString *localKey in keyMap) {
         if (keyedValues[keyMap[localKey]]) {
             id val = keyedValues[keyMap[localKey]];
+            id<SBNetworkFieldConverting> converter = [self.class networkFieldConverterForField:localKey];
+            val = converter != nil ? [converter fromNetwork:val] : val;
             if ([val isEqual:[NSNull null]]) {
                 [self setNilValueForKey:localKey];
             } else {
@@ -507,7 +546,7 @@
     }
     [_session authorizedJSONRequestWithMethod:@"GET" path:[self path] paramters:@{ } success:^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         // pass
-//        NSLog(@"got json: %@", JSON);
+        NSLog(@"got json: %@", JSON);
         [self _setBeforeParams:JSON];
         dispatch_async(_processingQueue, ^{
             NSArray *replacement = [self _processPage:JSON];
@@ -690,11 +729,24 @@
     return obj;
 }
 
-- (NSArray *)_processPage:(NSDictionary *)page
+- (NSArray *)_processPage:(id)page
 {
-    NSMutableArray *all = [NSMutableArray arrayWithCapacity:[page[@"data"] count]];
+    __block NSMutableArray *all;
     [[_dataObjectClass meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
-        for (NSDictionary *rep in page[@"data"]) {
+        NSArray *stuff;
+        // make this accept either an array or a dictionary containing an array
+        if ([page isKindOfClass:[NSDictionary dictionary]]) {
+            stuff = [page objectForKey:@"data"]; // TODO make this parameter configurable
+            all = [NSMutableArray arrayWithCapacity:[page[@"data"] count]];
+        } else if ([page isKindOfClass:[NSArray class]]) {
+            stuff = page;
+            all = [NSMutableArray arrayWithCapacity:[page count]];
+        } else {
+            @throw [NSException exceptionWithName:NSInternalInconsistencyException
+                                           reason:@"Could not process page. Unrecognized return format"
+                                         userInfo:@{ @"page": page }];
+        }
+        for (NSDictionary *rep in stuff) {
             SBDataObject *undecoratedObj = [_dataObjectClass fromNetworkRepresentation:rep session:self.session save:NO];
             SBDataObject *obj = [self _decorateObject:undecoratedObj]; //[[_dataObjectClass alloc] initWithSession:self.session];
             [meta save:obj];

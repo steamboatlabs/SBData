@@ -118,6 +118,11 @@ id getValue(id self, SEL _cmd) {
     return nil;
 }
 
++ (NSArray *)allFieldNames
+{
+    return [objc_getAssociatedObject(self, "propertyTypeMap") allKeys];
+}
+
 + (void)initialize
 {
     [super initialize];

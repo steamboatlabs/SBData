@@ -54,6 +54,9 @@ static inline NSString *FormatContainer(id obj) {
 - (void)setKey:(NSString *)key;
 - (void)setValuesForKeysWithDatabaseDictionary:(NSDictionary *)keyedValues; // same as setValuesForKeysWithDictionary except it respectsSBField coercion
 
++ (Class)classForPropertyName:(NSString *)propName;
++ (NSArray *)allFieldNames;
+
 @end
 
 

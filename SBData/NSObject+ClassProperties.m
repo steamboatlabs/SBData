@@ -56,8 +56,8 @@ static const char *getPropertyType(objc_property_t property)
         const char *propName = property_getName(property);
         if(propName) {
             const char *propType = getPropertyType(property);
-            NSString *propertyName = [NSString stringWithUTF8String:propName];
-            NSString *propertyType = [NSString stringWithUTF8String:propType];
+            NSString *propertyName = [NSString stringWithFormat:@"%s", propName];
+            NSString *propertyType = [NSString stringWithFormat:@"%s", propType];
             [results setObject:propertyType forKey:propertyName];
         }
     }
