@@ -24,8 +24,8 @@ static inline void LogStmt(NSString *fmt, ...) {
 
 static inline NSString *FormatContainer(id obj) {
     NSMutableString *s = [NSMutableString string];
-    if ([obj isKindOfClass:[NSString class]]) {
-        [s setString:obj];
+    if ([obj isKindOfClass:[NSString class]] || [obj conformsToProtocol:@protocol(SBField)]) {
+        [s setString:[obj description]];
     } else if ([obj isKindOfClass:[NSArray class]]) {
         [s appendString:@"["];
         for (id sub in obj) {
