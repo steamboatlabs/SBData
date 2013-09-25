@@ -54,6 +54,11 @@
 @property (nonatomic) NSString *userKey; // all objects are tied to a user
 
 + (SBDataObjectResultSet *)getBulkWithSession:(SBSession *)sesh authorized:(BOOL)isAuthorizedRequest;
++ (SBDataObjectResultSet *)getBulkPath:(NSString *)path withSession:(SBSession *)sesh authorized:(BOOL)isAuthorizedReq;
++ (SBDataObjectResultSet *)getBulkPath:(NSString *)path
+                            cacheQuery:(SBModelQuery *)q
+                           withSession:(SBSession *)sesh
+                            authorized:(BOOL)isAuthorizedReq;
 + (SBModelQuery *)bulkCacheQuery; // returns the query that is used as the cache
 + (SBModelQuery *)bulkCacheQueryForSession:(SBSession *)sesh;
 
@@ -104,6 +109,15 @@
 @property (nonatomic) NSString *path;
 
 - (id)initWithDataObjectClass:(Class)klass session:(SBSession *)sesh authorized:(BOOL)makeAuthroizedRequests;
+- (id)initWithDataObjectClass:(Class)klass
+                         path:(NSString *)path
+                      session:(SBSession *)sesh
+                   authorized:(BOOL)makeAuthroizedRequests;
+- (id)initWithDataObjectClass:(Class)klass
+                         path:(NSString *)path
+                   cacheQuery:(SBModelQuery *)query
+                      session:(SBSession *)sesh
+                   authorized:(BOOL)makeAuthroizedRequests;
 
 - (void)refresh;
 - (void)loadMore;

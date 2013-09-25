@@ -391,6 +391,23 @@
     return [[SBDataObjectResultSet alloc] initWithDataObjectClass:self session:sesh authorized:isAuthorizedRequest];
 }
 
++ (SBDataObjectResultSet *)getBulkPath:(NSString *)path withSession:(SBSession *)sesh authorized:(BOOL)isAuthorizedReq
+{
+    return [[SBDataObjectResultSet alloc] initWithDataObjectClass:self
+                                                             path:path
+                                                          session:sesh
+                                                       authorized:isAuthorizedReq];
+}
+
++ (SBDataObjectResultSet *)getBulkPath:(NSString *)path cacheQuery:(SBModelQuery *)q withSession:(SBSession *)sesh authorized:(BOOL)isAuthorizedReq
+{
+    return [[SBDataObjectResultSet alloc] initWithDataObjectClass:self
+                                                             path:path
+                                                       cacheQuery:q
+                                                          session:sesh
+                                                       authorized:isAuthorizedReq];
+}
+
 + (SBModelQuery *)bulkCacheQuery
 {
     return [[[self meta] queryBuilder] query];
@@ -454,11 +471,35 @@
 
 - (id)initWithDataObjectClass:(Class)klass session:(SBSession *)sesh authorized:(BOOL)makeAuthroizedRequests
 {
-    self = [super initWithQuery:[klass bulkCacheQueryForSession:sesh]];
+    return [self initWithDataObjectClass:klass
+                                    path:[klass bulkPath]
+                                 session:sesh
+                              authorized:makeAuthroizedRequests];
+}
+
+- (id)initWithDataObjectClass:(Class)klass
+                         path:(NSString *)path
+                      session:(SBSession *)sesh
+                   authorized:(BOOL)makeAuthroizedRequests
+{
+    return [self initWithDataObjectClass:klass
+                                    path:path
+                              cacheQuery:[klass bulkCacheQueryForSession:sesh]
+                                 session:sesh
+                              authorized:makeAuthroizedRequests];
+}
+
+- (id)initWithDataObjectClass:(Class)klass
+                         path:(NSString *)path
+                   cacheQuery:(SBModelQuery *)query
+                      session:(SBSession *)sesh
+                   authorized:(BOOL)makeAuthroizedRequests
+{
+    self = [super initWithQuery:query];
     if (self) {
         _session = sesh;
         _makeAuthorizedRequests = makeAuthroizedRequests;
-        _bulkPath = [[klass bulkPath] copy];
+        _bulkPath = [path copy]; //[[klass bulkPath] copy];
         _dataObjectClass = klass;
         _processingQueue = dispatch_queue_create("com.sbdata.result-set-processing-q", 0);
         _allObjects = [NSMutableArray array];
