@@ -70,6 +70,7 @@
 
 @protocol SBDataObjectResultSetDelegate <NSObject>
 
+@optional
 - (void)resultSetWillBeginUpdating:(SBDataObjectResultSet *)resultSet;
 - (void)resultSet:(SBDataObjectResultSet *)resultSet didInsertObjectAtIndexes:(NSIndexSet *)idx;
 - (void)resultSet:(SBDataObjectResultSet *)resultSet didRemoveObjectAtIndexes:(NSIndexSet *)idx;
