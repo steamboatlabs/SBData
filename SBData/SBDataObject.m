@@ -363,7 +363,9 @@
         dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
         dispatch_async(q, ^{
             [[[self class] meta] remove:self];
-            onSuccess(nil);
+            dispatch_async(dispatch_get_main_queue(), ^{
+                onSuccess(nil);
+            });
         });
     };
     
