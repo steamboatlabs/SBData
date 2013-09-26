@@ -44,6 +44,8 @@
 // api (eg "api")
 - (void)saveInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure;
 
+- (void)removeInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure;
+
 + (void)saveBulk:(NSArray *)array withSession:(SBSession *)session key:(NSString *)existingKey // key to find existing objects, defaults to "objId"
       authorized:(BOOL)authorized success:(SBSuccessBlock)success failure:(SBErrorBlock)failure;
 

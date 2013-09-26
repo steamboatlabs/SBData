@@ -43,6 +43,8 @@
 // this shit will deadlock
 - (void)save;
 
+- (void)remove;
+
 // reloads information in this object from the database
 - (void)reload;
 
@@ -77,15 +79,28 @@
 
 - (id)initWithModelClass:(Class)kls;
 
-- (void)save:(SBModel *)obj; // saves the model to the db and saves its index - NOT (!) THREAD SAFE - use inTransaction: or inDeferredTransaction:
-- (void)reload:(SBModel *)obj; // reloads the model from the database - NOT THREAD SAFE - use inDeferredTransaction or inTransaction
-- (void)initDb; // create the database and such - THREAD SAFE
+// saves the model to the db and saves its index
+// NOT (!) THREAD SAFE - use inTransaction: or inDeferredTransaction:
+- (void)save:(SBModel *)obj;
+
+// removes from the model from the db and removes related indexes
+// NOT THREAD SAFE
+- (void)remove:(SBModel *)obj;
+
+// reloads the model from the database
+// NOT THREAD SAFE - use inDeferredTransaction or inTransaction
+- (void)reload:(SBModel *)obj;
+
+// create the database and such - THREAD SAFE
+- (void)initDb;
 
 // synchronizing access to theSBModelMeta so operations can be preformed in other threads
 - (void)inTransaction:(void(^)(SBModelMeta *meta, BOOL *rollback))transactionBlock;
 - (void)inDeferredTransaction:(void (^)(SBModelMeta *meta, BOOL *rollback))block;
 
-- (SBModelResultSet *)findWithProperties:(NSDictionary *)properties orderBy:(NSArray *)orderBy sorting:(SBModelSorting)sort;
+- (SBModelResultSet *)findWithProperties:(NSDictionary *)properties
+                                 orderBy:(NSArray *)orderBy
+                                 sorting:(SBModelSorting)sort;
 - (id)findOne:(NSDictionary *)properties;
 - (id)findByKey:(NSString *)key;
 - (SBModelQueryBuilder *)queryBuilder;

@@ -161,7 +161,8 @@ id getValue(id self, SEL _cmd) {
     }
 }
 
-- (void)setValuesForKeysWithDatabaseDictionary:(NSDictionary *)keyedValues // same as setValuesForKeysWithDictionary except it respectsSBField coercion
+// same as setValuesForKeysWithDictionary except it respects SBField coercion
+- (void)setValuesForKeysWithDatabaseDictionary:(NSDictionary *)keyedValues
 {
     for (NSString *key in keyedValues) {
         Class propClass = [[self class] classForPropertyName:key];
@@ -219,6 +220,13 @@ id getValue(id self, SEL _cmd) {
 {
     [[[self class] meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
         [meta save:self];
+    }];
+}
+
+- (void)remove
+{
+    [[[self class] meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+        [meta remove:self];
     }];
 }
 
@@ -423,7 +431,9 @@ static dispatch_queue_t _sharedQueue;
         for (NSArray *idx in _indexes) {
             // create the index table
             NSString *tableName = [NSString stringWithFormat:@"%@_%@", _name, [idx componentsJoinedByString:@"_"]];
-            NSMutableString *mStmt = [[NSMutableString alloc] initWithFormat:@"CREATE TABLE IF NOT EXISTS %@ (%@ VARCHAR(36) NOT NULL", tableName, PRIVATE_UUID_KEY];
+            NSMutableString *mStmt = [[NSMutableString alloc] initWithFormat:
+                                      @"CREATE TABLE IF NOT EXISTS %@ (%@ VARCHAR(36) NOT NULL",
+                                      tableName, PRIVATE_UUID_KEY];
             for (NSString *field in idx) {
                 NSString *fieldType = @"TEXT";
                 Class propClass = [_modelClass classForPropertyName:field];
@@ -442,7 +452,8 @@ static dispatch_queue_t _sharedQueue;
             
             // create the index table index
             NSString *fields = [idx componentsJoinedByString:@" ASC, "];
-            stmt = [NSString stringWithFormat:@"CREATE INDEX IF NOT EXISTS %@_index ON %@ (%@ ASC)", tableName, tableName, fields];
+            stmt = [NSString stringWithFormat:@"CREATE INDEX IF NOT EXISTS %@_index ON %@ (%@ ASC)",
+                    tableName, tableName, fields];
             if (![db executeUpdate:stmt]) {
                 NSLog(@"error creating index on index table: %@", [db lastError]);
             }
@@ -466,7 +477,8 @@ static dispatch_queue_t _sharedQueue;
         // no key yet so generate a uuid and set it
         [model setKey:[[NSUUID UUID] UUIDString]];
         
-        NSString *stmt = [NSString stringWithFormat:@"INSERT INTO %@ (%@, data) VALUES (?, ?)", _name, PRIVATE_UUID_KEY];
+        NSString *stmt = [NSString stringWithFormat:@"INSERT INTO %@ (%@, data) VALUES (?, ?)",
+                          _name, PRIVATE_UUID_KEY];
         if (![db executeUpdate:stmt withArgumentsInArray:@[ model.key, JSON ]]) {
             NSLog(@"error inserting: %@", [db lastError]);
         }
@@ -485,7 +497,27 @@ static dispatch_queue_t _sharedQueue;
     }
 }
 
-- (void)_populateIndex:(NSString *)tableName fieldNames:(NSArray *)fieldNames key:(NSString *)key values:(NSDictionary *)dict
+- (void)remove:(SBModel *)obj
+{
+    if (!obj.key) {
+        NSLog(@"Nothing to remove! %@ is not in the database yet", obj);
+        return;
+    }
+    FMDatabase *db = [self writeDatabase];
+    NSString *stmt = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = ?", _name, PRIVATE_UUID_KEY];
+    if (![db executeUpdate:stmt withArgumentsInArray:@[ obj.key ]]) {
+        NSLog(@"error deleting: %@", [db lastError]);
+    }
+    LogStmt(@"%@", stmt);
+    for (NSString *tName in [self _getIndexTableNames]) {
+        [self _unpopulateIndex:tName key:obj.key];
+    }
+}
+
+- (void)_populateIndex:(NSString *)tableName
+            fieldNames:(NSArray *)fieldNames
+                   key:(NSString *)key
+                values:(NSDictionary *)dict
 {
     NSMutableArray *values = [NSMutableArray arrayWithObject:key];
     for (NSString *fieldName in fieldNames) {
@@ -507,7 +539,8 @@ static dispatch_queue_t _sharedQueue;
         }
     }
     [values removeObjectsAtIndexes:ignoreNullIndexes];
-    NSString *stmt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO %@ (%@, %@) VALUES (%@)", tableName, PRIVATE_UUID_KEY,
+    NSString *stmt = [NSString stringWithFormat:@"INSERT OR REPLACE INTO %@ (%@, %@) VALUES (%@)",
+                      tableName, PRIVATE_UUID_KEY,
                       [fieldNames componentsJoinedByString:@", "],
                       [questionMarks substringToIndex:questionMarks.length -2]];
     if (![[self writeDatabase] executeUpdate:stmt withArgumentsInArray:values]) {
@@ -515,9 +548,18 @@ static dispatch_queue_t _sharedQueue;
     }
 }
 
+- (void)_unpopulateIndex:(NSString *)tableName key:(NSString *)key
+{
+    NSString *stmt = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = ?", tableName, PRIVATE_UUID_KEY];
+    if (![[self writeDatabase] executeUpdate:stmt withArgumentsInArray:@[ key ]]) {
+        NSLog(@"error removing from index: %@", [[self writeDatabase] lastError]);
+    }
+}
+
 - (void)reload:(SBModel *)obj
 {
     if (!obj.key) {
+        NSLog(@"can not reload object because it's not yet in the database %@", obj);
         return; // can not reload the object if it does not exist
     }
     FMDatabase *db = [self readDatabase];

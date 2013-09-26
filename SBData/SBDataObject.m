@@ -349,6 +349,36 @@
      }];
 }
 
+- (void)removeInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure
+{
+    NSParameterAssert(self.session != nil);
+    AFHTTPClient *cli = self.authorized ? self.session.authorizedHttpClient : self.session.anonymousHttpClient;
+    
+    NSURLRequest *req = [cli requestWithMethod:@"DELETE" path:[self path] parameters:@{}];
+    
+    // using a regular request because we aren't sending JSON nor do we expect to get it back
+    AFHTTPRequestOperation *op = [[AFHTTPRequestOperation alloc] initWithRequest:req];
+    
+    void(^doDelete)(SBSuccessBlock) = ^(SBSuccessBlock onSuccess) {
+        dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
+        dispatch_async(q, ^{
+            [[[self class] meta] remove:self];
+            onSuccess(nil);
+        });
+    };
+    
+    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        doDelete(onSuccess);
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        if (error.code == 404) { // it doesn't exist anymore anyway
+            doDelete(onSuccess);
+        } else {
+            onFailure(error);
+        }
+    }];
+    [cli enqueueHTTPRequestOperation:op];
+}
+
 - (void)getRedirectResponse:(NSHTTPURLResponse *)response client:(AFHTTPClient *)cli
                     success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
 {
