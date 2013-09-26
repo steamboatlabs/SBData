@@ -450,6 +450,11 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
                   failure(nil, nil, error, nil);
               }];
           } else {
+              if (JSON && JSON[@"error"]) {
+                  NSDictionary *d = @{NSLocalizedDescriptionKey: JSON[@"error"],
+                                      NSUnderlyingErrorKey: error};
+                  error = [[NSError alloc] initWithDomain:AFNetworkingErrorDomain code:error.code userInfo:d];
+              }
               failure(request, response, error, JSON);
           }
       }];
