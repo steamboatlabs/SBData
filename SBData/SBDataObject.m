@@ -172,10 +172,10 @@
         if (keyedValues[keyMap[localKey]]) {
             id val = keyedValues[keyMap[localKey]];
             id<SBNetworkFieldConverting> converter = [self.class networkFieldConverterForField:localKey];
-            val = converter != nil ? [converter fromNetwork:val] : val;
             if ([val isEqual:[NSNull null]]) {
                 [self setNilValueForKey:localKey];
             } else {
+                val = converter != nil ? [converter fromNetwork:val] : val;
                 [self setValue:val forKey:localKey];
             }
         }
