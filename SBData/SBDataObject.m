@@ -362,10 +362,12 @@
     void(^doDelete)(SBSuccessBlock) = ^(SBSuccessBlock onSuccess) {
         dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
         dispatch_async(q, ^{
-            [[[self class] meta] remove:self];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                onSuccess(nil);
-            });
+            [[[self class] meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+                [meta remove:self];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    onSuccess(nil);
+                });
+            }];
         });
     };
     
