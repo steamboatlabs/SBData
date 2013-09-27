@@ -87,6 +87,10 @@
 // NOT THREAD SAFE
 - (void)remove:(SBModel *)obj;
 
+// remove all models and their indexes from the DB
+// NOT THREAD SAFE
+- (void)removeAll;
+
 // reloads the model from the database
 // NOT THREAD SAFE - use inDeferredTransaction or inTransaction
 - (void)reload:(SBModel *)obj;

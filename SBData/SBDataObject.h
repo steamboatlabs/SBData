@@ -121,6 +121,7 @@
 @property (nonatomic, weak) NSObject<SBDataObjectResultSetDelegate> *delegate;
 @property (nonatomic, readonly) SBSession *session;
 @property (nonatomic) NSString *path;
+@property (nonatomic) BOOL clearsCollectionBeforeSaving;
 
 - (id)initWithDataObjectClass:(Class)klass session:(SBSession *)sesh authorized:(BOOL)makeAuthroizedRequests;
 - (id)initWithDataObjectClass:(Class)klass

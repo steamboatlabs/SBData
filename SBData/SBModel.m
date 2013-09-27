@@ -514,6 +514,23 @@ static dispatch_queue_t _sharedQueue;
     }
 }
 
+- (void)removeAll
+{
+    FMDatabase *db = [self writeDatabase];
+    NSString *q = [NSString stringWithFormat:@"DELETE FROM %@", _name];
+    LogStmt(q);
+    if (![db executeUpdate:q]) {
+        NSLog(@"error deleting data table: %@", [db lastError]);
+    }
+    for (NSString *idxName in [self _getIndexTableNames]) {
+        q = [NSString stringWithFormat:@"DELETE FROM %@", idxName];
+        LogStmt(@"%@", q);
+        if (![db executeUpdate:q]) {
+            NSLog(@"error deleting index table: %@", [db lastError]);
+        }
+    }
+}
+
 - (void)_populateIndex:(NSString *)tableName
             fieldNames:(NSArray *)fieldNames
                    key:(NSString *)key
@@ -543,6 +560,7 @@ static dispatch_queue_t _sharedQueue;
                       tableName, PRIVATE_UUID_KEY,
                       [fieldNames componentsJoinedByString:@", "],
                       [questionMarks substringToIndex:questionMarks.length -2]];
+    LogStmt(@"%@", stmt);
     if (![[self writeDatabase] executeUpdate:stmt withArgumentsInArray:values]) {
         NSLog(@"error updating index: %@", [[self writeDatabase] lastError]);
     }
@@ -551,6 +569,7 @@ static dispatch_queue_t _sharedQueue;
 - (void)_unpopulateIndex:(NSString *)tableName key:(NSString *)key
 {
     NSString *stmt = [NSString stringWithFormat:@"DELETE FROM %@ WHERE %@ = ?", tableName, PRIVATE_UUID_KEY];
+    LogStmt(@"%@", stmt);
     if (![[self writeDatabase] executeUpdate:stmt withArgumentsInArray:@[ key ]]) {
         NSLog(@"error removing from index: %@", [[self writeDatabase] lastError]);
     }

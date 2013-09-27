@@ -685,6 +685,11 @@
         NSLog(@"got json: %@", JSON);
         [self _setBeforeParams:JSON];
         dispatch_async(_processingQueue, ^{
+            if (self.clearsCollectionBeforeSaving) {
+                [[_dataObjectClass meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+                    [[_dataObjectClass meta] removeAll];
+                }];
+            }
             NSArray *replacement = [self _processPage:JSON];
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self _reset:replacement];
