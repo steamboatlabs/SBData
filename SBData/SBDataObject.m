@@ -410,6 +410,40 @@
     [cli enqueueHTTPRequestOperation:op];
 }
 
+- (void)updateWithNetworkRepresentation:(NSDictionary *)representation
+                                success:(SBSuccessBlock)onSuccess
+                                failure:(SBErrorBlock)onFailure
+{
+    dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
+    dispatch_async(q, ^{
+        [[[self class] meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+            [self setValuesForKeysWithNetworkDictionary:representation];
+            [meta save:self];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                onSuccess(self);
+            });
+        }];
+    });
+}
+
++ (void)createWithNetworkRepresentation:(NSDictionary *)representation
+                                session:(SBSession *)sesh
+                                success:(SBSuccessBlock)success
+                                failure:(SBErrorBlock)failure
+{
+    dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
+    dispatch_async(q, ^{
+        [[self meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+            SBDataObject *roster = [[[self class] alloc] initWithSession:sesh];
+            [roster setValuesForKeysWithNetworkDictionary:representation];
+            [[[self class] meta] save:roster];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                success(roster);
+            });
+        }];
+    });
+}
+
 - (void)getRedirectResponse:(NSHTTPURLResponse *)response client:(AFHTTPClient *)cli
                     success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
 {

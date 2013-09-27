@@ -48,6 +48,15 @@
 
 - (void)refreshInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure;
 
+- (void)updateWithNetworkRepresentation:(NSDictionary *)representation
+                                success:(SBSuccessBlock)onSuccess
+                                failure:(SBErrorBlock)onFailure;
+
++ (void)createWithNetworkRepresentation:(NSDictionary *)representation
+                                session:(SBSession *)session
+                                success:(SBSuccessBlock)success
+                                failure:(SBErrorBlock)failure;
+
 + (void)saveBulk:(NSArray *)array withSession:(SBSession *)session key:(NSString *)existingKey // key to find existing objects, defaults to "objId"
       authorized:(BOOL)authorized success:(SBSuccessBlock)success failure:(SBErrorBlock)failure;
 
