@@ -8,6 +8,7 @@
 
 #import <Foundation/Foundation.h>
 #import "SBModel.h"
+#import <AFNetworking/AFJSONRequestOperation.h>
 
 // These keys are pulled from the application's Info.plist file
 #define SBApiBaseURLKey @"SBAPIBaseURLSpec"
@@ -29,6 +30,10 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 @class AFOAuth2Client;
 @class AFOAuthCredential;
 @class SBDataObject;
+
+// need some custom behavior in AFJSONRequestOperation
+@interface SBJSONRequestOperation : AFJSONRequestOperation
+@end
 
 // Stores information about a current session. Can store preference values similar to how
 // NSUserDefaults does - except it will be tied to an individual session instead of visible

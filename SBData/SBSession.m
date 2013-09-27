@@ -26,9 +26,6 @@ NSString *SBDidReceiveRemoteNotificationAuthorization   = @"SBDidReceiveRemoteNo
 // AFNetworking subclasses ---------------------------------------------------------------------------------------------
 //
 
-@interface SBJSONRequestOperation : AFJSONRequestOperation
-@end
-
 @implementation SBJSONRequestOperation
 
 - (BOOL)allowsInvalidSSLCertificate

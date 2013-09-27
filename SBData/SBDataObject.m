@@ -14,6 +14,7 @@
 #import "NSObject+ClassProperties.h"
 #import "SBModel_SBModelPrivate.h"
 #import "SBDataObjectTypes.h"
+#import "SBSession.h"
 
 
 @interface SBDataObject ()
