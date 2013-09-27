@@ -381,6 +381,32 @@
     [cli enqueueHTTPRequestOperation:op];
 }
 
+- (void)refreshInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure
+{
+    NSParameterAssert(self.session != nil);
+    AFHTTPClient *cli = self.authorized ? self.session.authorizedHttpClient : self.session.anonymousHttpClient;
+    
+    NSURLRequest *req = [cli requestWithMethod:@"GET" path:[self path] parameters:@{}];
+    
+    SBJSONRequestOperation *op = [[SBJSONRequestOperation alloc] initWithRequest:req];
+    
+    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
+        dispatch_async(q, ^{
+            [[[self class] meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+                [self setValuesForKeysWithNetworkDictionary:responseObject];
+                [meta save:self];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    onSuccess(self);
+                });
+            }];
+        });
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        onFailure(error);
+    }];
+    [cli enqueueHTTPRequestOperation:op];
+}
+
 - (void)getRedirectResponse:(NSHTTPURLResponse *)response client:(AFHTTPClient *)cli
                     success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
 {
