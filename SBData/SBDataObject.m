@@ -434,9 +434,7 @@
     dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
     dispatch_async(q, ^{
         [[self meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
-            SBDataObject *roster = [[[self class] alloc] initWithSession:sesh];
-            [roster setValuesForKeysWithNetworkDictionary:representation];
-            [[[self class] meta] save:roster];
+            SBDataObject *roster = [[self class] fromNetworkRepresentation:representation session:sesh save:YES];
             dispatch_async(dispatch_get_main_queue(), ^{
                 success(roster);
             });
