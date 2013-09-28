@@ -883,9 +883,8 @@
             stuff = page;
             all = [NSMutableArray arrayWithCapacity:[page count]];
         } else {
-            @throw [NSException exceptionWithName:NSInternalInconsistencyException
-                                           reason:@"Could not process page. Unrecognized return format"
-                                         userInfo:@{ @"page": page }];
+            NSLog(@"SBDataObjectResultSet was unable to process a page %@", page);
+            return;
         }
         for (NSDictionary *rep in stuff) {
             SBDataObject *undecoratedObj = [_dataObjectClass fromNetworkRepresentation:rep session:self.session save:NO];
