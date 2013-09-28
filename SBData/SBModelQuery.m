@@ -15,6 +15,11 @@ const NSTimeInterval timeSince(NSDate *since) {
     return [since timeIntervalSinceNow] * -1000.0;
 }
 
+typedef enum {
+    SBModelQuerySelect,
+    SBModelQueryDelete
+} SBModelQueryType;
+
 //
 // QUERY ---------------------------------------------------------------------------------------------------------------
 //
@@ -23,17 +28,20 @@ const NSTimeInterval timeSince(NSDate *since) {
 
 
 - (void)_genQuery;
-//- (void)populateWithParameters:(NSDictionary *)params orderBy:(NSArray *)orderBy sort:(SBModelSorting)sort decorator:(id(^)(SBModel *))dec;
-- (void)populateWithTerms:(NSSet *)terms orderBy:(NSArray *)orderBy sort:(SBModelSorting)sort decorator:(id(^)(SBModel *))dec;
+- (void)populateWithTerms:(NSSet *)terms
+                  orderBy:(NSArray *)orderBy
+                     sort:(SBModelSorting)sort
+                decorator:(id(^)(SBModel *))dec;
 
 // helper to determine which is most satisfying to the given prop names
-//- (NSArray *)_getLargestIndex:(NSArray *)propnames;
 - (NSArray *)_getLargestIndex:(NSSet *)propnames;
 
 - (NSString *)_quotedString:(NSString *)str;
-//- (NSDictionary *)_whereClauseForColumn:(NSString *)colName term:(id<SBModelQueryTerm>)value;
 - (NSDictionary *)_orderByClauseForColumns:(NSArray *)columns sort:(SBModelSorting)sortOrder;
-- (NSString *)_queryForFields:(NSArray *)fields includeSort:(BOOL)sortClause; // manualFields:(NSDictionary **)manual queryParams:(NSDictionary **)params;
+- (NSString *)_queryForFields:(NSArray *)fields
+                statementType:(SBModelQueryType)clause
+                includeFields:(BOOL)includeFields
+                  includeSort:(BOOL)sortClause;
 
 @property (nonatomic) BOOL dirty;
 @property (nonatomic, readonly) NSString *query;
@@ -47,10 +55,6 @@ const NSTimeInterval timeSince(NSDate *since) {
 {
     SBModelMeta *_meta;
     NSString *_query;
-//    NSDictionary *_manualSearchFields;
-//    NSDictionary *_queryParameters;
-    
-//    NSDictionary *_parameters;
     NSSet *_queryTerms;
     NSArray *_orderBy;
     SBModelSorting _sortOrder;
@@ -72,11 +76,12 @@ const NSTimeInterval timeSince(NSDate *since) {
     return [NSString stringWithFormat:@"<%@ %@>", NSStringFromClass([self class]), self.query];
 }
 
-//- (void)populateWithParameters:(NSDictionary *)params orderBy:(NSArray *)orderBy sort:(SBModelSorting)sort decorator:(id(^)(SBModel *))dec
-- (void)populateWithTerms:(NSSet *)terms orderBy:(NSArray *)orderBy sort:(SBModelSorting)sort decorator:(id(^)(SBModel *))dec
+- (void)populateWithTerms:(NSSet *)terms
+                  orderBy:(NSArray *)orderBy
+                     sort:(SBModelSorting)sort
+                decorator:(id(^)(SBModel *))dec
 {
     self.dirty = YES;
-//    _parameters = params;
     _queryTerms = terms;
     _orderBy = orderBy;
     _sortOrder = sort;
@@ -87,8 +92,6 @@ const NSTimeInterval timeSince(NSDate *since) {
 {
     if (dirty) {
         _query = nil;
-//        _queryParameters = nil;
-//        _manualSearchFields = nil;
     }
     _dirty = dirty;
 }
@@ -98,18 +101,6 @@ const NSTimeInterval timeSince(NSDate *since) {
     [self _genQuery];
     return _query;
 }
-
-//- (NSDictionary *)queryParameters
-//{
-//    [self _genQuery];
-//    return _queryParameters;
-//}
-//
-//- (NSDictionary *)manualSearchFields
-//{
-//    [self _genQuery];
-//    return _manualSearchFields;
-//}
 
 - (SBModelResultSet *)results
 {
@@ -142,15 +133,14 @@ const NSTimeInterval timeSince(NSDate *since) {
 // determine the largest available index for all the prop names
 - (NSArray *)_getLargestIndex:(NSSet *)propnames
 {
-//    NSSet *fieldSet = [NSSet setWithArray:propnames];
     NSMutableArray *indexes = [NSMutableArray array];
     for (NSArray *idx in _meta.indexes) {
         [indexes addObject:@[ [NSMutableSet setWithArray:idx], idx ]];
     }
     NSMutableArray *coverage = [NSMutableArray array];
     for (NSArray *index in indexes) {
-        //        if (![index[0] isSubsetOfSet:fieldSet]) {
-        if (![propnames isSubsetOfSet:index[0]]) { // if index[0] does not contain at least as many similar elements to fieldSet
+        // if index[0] does not contain at least as many similar elements to fieldSet
+        if (![propnames isSubsetOfSet:index[0]]) {
             continue;
         }
         NSMutableSet *mFieldSet = [propnames mutableCopy];
@@ -192,31 +182,6 @@ const NSTimeInterval timeSince(NSDate *since) {
     return escapedValue;
 }
 
-// takes a mapping ot COLUMN => VALUE and turns it into a WHERE clause which an then be inserted directly into the query
-// the return value is a mapping of:
-//      @"text": STRING VALUE - the part to be inserted into the query
-//      @"parameters": PARAMETER DICTINOARY - the parameters to be provided to this part of the query
-//- (NSDictionary *)_whereClauseForColumn:(NSString *)colName term:(id<SBModelQueryTerm>)value
-//{
-    //    if ([value isKindOfClass:[NSSet class]]) {
-    //        NSMutableArray *escapedValues = [NSMutableArray arrayWithCapacity:[value count]];
-    //        NSArray *arrayValue = [value allObjects];
-    //        for (id el in arrayValue) {
-    //            if (![el isKindOfClass:[NSString class]]) {
-    //                NSLog(@"Tried to execute an IN() search but all elements of the set were not strings");
-    //                goto unknown_type;
-    //            }
-    //            [escapedValues addObject:[self _quotedString:el]];
-    //        }
-    //        return @{ @"text": [NSString stringWithFormat:@"%@ IN(%@)", colName, [escapedValues componentsJoinedByString:@", "]],
-    //                  @"paraemters": @{ } };
-    //    }
-    //
-    //unknown_type:
-    //    return @{ @"text": [NSString stringWithFormat:@"%@ = :%@", colName, colName], @"parameters": @{ colName: value } };
-//    return @{ @"text": [value render], @"parameters": @{ } };
-//}
-
 // takes a list of columns and turns it into a order by clause for a query
 // in order to order adding a join may be required
 // the return value is a mapping of:
@@ -255,56 +220,43 @@ const NSTimeInterval timeSince(NSDate *since) {
     return @{ @"text": order, @"join": joinText, @"index": index };
 }
 
-- (NSString *)_queryForFields:(NSArray *)fields includeSort:(BOOL)sortClause //manualFields:(NSDictionary **)manual queryParams:(NSDictionary **)params
+- (NSString *)_queryForFields:(NSArray *)fields
+                statementType:(SBModelQueryType)clause
+                includeFields:(BOOL)includeFields
+                  includeSort:(BOOL)sortClause
 {
-//    NSArray *index;
     NSString *stmt;
-//    NSMutableDictionary *manualSearchFields = [NSMutableDictionary dictionary]; //[_parameters mutableCopy];
-//    NSDictionary *queryDict;
-    
     NSSet *columns = [self _getColumnsFromQueryTerms];
-//    NSLog(@"columns: %@", columns);
     NSArray *index = [self _indexForColumns:columns];
-    
-//    if (_parameters == nil) {
-//        _parameters = @{ };
-//        index = @[ ];
-//    } else if (_parameters[@"key"] != nil) {
-//        index = @[ @"key" ];
-//    } else {
-//        index = [self _getLargestIndex:[_parameters allKeys]];
-//    }
 
     // determine which index to use for sorting - if excluding ordering just get an empty order by back
-    NSDictionary *order = sortClause ? [self _orderByClauseForColumns:_orderBy sort:_sortOrder] : [self _orderByClauseForColumns:nil sort:SBModelAscending];
+    NSDictionary *order = (sortClause
+                           ? [self _orderByClauseForColumns:_orderBy sort:_sortOrder]
+                           : [self _orderByClauseForColumns:nil sort:SBModelAscending]);
+    
+    NSString *kind = clause == SBModelQuerySelect ? @"SELECT" : @"DELETE";
     
     NSString *fieldsStr = @"";
-    if ([fields isEqualToArray:@[ @"COUNT(*)" ]]) { // special case for when we want a count - currently only COUNT(*) is supported
+    if (!includeFields) {
+        // fields will be empty
+    } else if ([fields isEqualToArray:@[ @"COUNT(*)" ]]) {
+        // special case for when we want a count - currently only COUNT(*) is supported
         fieldsStr = fields[0];
     } else {
         fieldsStr = [NSString stringWithFormat:@"x.%@", [fields componentsJoinedByString:@", x."]];
     }
     
     if (!index.count) {
-        stmt = [NSString stringWithFormat:@"SELECT %@ FROM %@ x %@ %@", fieldsStr, _meta.name, order[@"join"], order[@"text"]];
-//        queryDict = @{ };
-    }  else if ([index isEqualToArray:@[ @"key" ]]) {
-        stmt = [NSString stringWithFormat:@"SELECT %@ FROM %@ x %@ WHERE x.%@ = %@ %@", fieldsStr, _meta.name, order[@"join"],
+        stmt = [NSString stringWithFormat:@"%@ %@ FROM %@ x %@ %@",
+                kind, fieldsStr, _meta.name, order[@"join"], order[@"text"]];
+    }
+    else if ([index isEqualToArray:@[ @"key" ]]) {
+        stmt = [NSString stringWithFormat:@"%@ %@ FROM %@ x %@ WHERE x.%@ = %@ %@",
+                kind, fieldsStr, _meta.name, order[@"join"],
                 PRIVATE_UUID_KEY, [self _quotedString:[self _getKeyFromQueryTerms]], order[@"text"]];
-//        queryDict = @{ @"key": [(id<SBModelQueryTerm>)_parameters[@"key"][0] value] };
-//        [manualSearchFields removeAllObjects];
-    } else {
+    }
+    else {
         NSMutableArray *whereClauses = [NSMutableArray array];
-//        NSMutableDictionary *queryParamters = [NSMutableDictionary dictionary];
-//        for (NSString *indexComponent in index) {
-//            for (id<SBModelQueryTerm> term in _parameters[indexComponent]) {
-//                NSDictionary *where = [self _whereClauseForColumn:indexComponent term:term];
-//                [whereClauses addObject:where[@"text"]];
-//                for (NSString *paramKey in where[@"parameters"]) {
-//                    [queryParamters setObject:where[@"parameters"][paramKey] forKey:paramKey];
-//                }
-//            }
-//        }
         for (id<SBModelQueryTerm> term in _queryTerms) {
             // ensure that all prop names being examined by this term are available in the index
             for (id prop in [term propNames]) {
@@ -319,34 +271,42 @@ const NSTimeInterval timeSince(NSDate *since) {
             NSLog(@"UNABLE TO QUERY TERM: %@ - MISSING INDEX", term);
             continue; // TODO: implement manual search
         }
-        stmt = [NSString stringWithFormat:@"SELECT %@ FROM %@ x INNER JOIN %@_%@ y ON x.%@ = y.%@ %@ WHERE %@ %@",
-                fieldsStr, _meta.name, _meta.name, [index componentsJoinedByString:@"_"], PRIVATE_UUID_KEY, PRIVATE_UUID_KEY,
-                order[@"join"], [whereClauses componentsJoinedByString:@" AND "], order[@"text"]];
-//        queryDict = [queryParamters copy];
-//        for (NSString *k in index) {
-//            [manualSearchFields removeObjectForKey:k];
-//        }
+        stmt = [NSString stringWithFormat:@"%@ %@ FROM %@ x INNER JOIN %@_%@ y ON x.%@ = y.%@ %@ WHERE %@ %@",
+                kind, fieldsStr, _meta.name, _meta.name, [index componentsJoinedByString:@"_"],
+                PRIVATE_UUID_KEY, PRIVATE_UUID_KEY, order[@"join"],
+                [whereClauses componentsJoinedByString:@" AND "], order[@"text"]];
     }
-//    if (manual && *manual == nil) {
-//        *manual = manualSearchFields;
-//    }
-//    *params = queryDict;
     return stmt;
 }
 
 - (void)_genQuery
 {
-    if (_query != nil) { // && _queryParameters != nil && _manualSearchFields != nil) {
+    if (_query != nil) {
         return;
     }
-//    NSDictionary *queryParams = nil;
-//    NSDictionary *manualFields = nil;
-    _query = [self _queryForFields:@[ @"id", PRIVATE_UUID_KEY, @"data" ] includeSort:YES]; //manualFields:&manualFields queryParams:&queryParams];
-//    _queryParameters = queryParams;
-//    _manualSearchFields = manualFields;
+    _query = [self _queryForFields:@[ @"id", PRIVATE_UUID_KEY, @"data" ]
+                     statementType:SBModelQuerySelect
+                     includeFields:YES
+                       includeSort:YES];
 }
 
-- (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count // not guaranteed to return `count` number of items - manual filtering may be required
+- (void)removeAll
+{
+    NSString *query = [self _queryForFields:@[ PRIVATE_UUID_KEY ]
+                              statementType:SBModelQueryDelete
+                              includeFields:NO
+                                includeSort:NO];
+    LogStmt(@"%@", query);
+    [_meta inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+        FMDatabase *db = [_meta writeDatabase];
+        if (![db executeUpdate:query]) {
+            NSLog(@"error removing rows %@", [db lastError]);
+        }
+    }];
+}
+
+// not guaranteed to return `count` number of items - manual filtering may be required
+- (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count
 {
     NSParameterAssert((offset == -1 && count) || (offset != -1 && count != -1) || (offset == -1 && count == -1)); // you can provide count, count and offset, or neither
     NSDate *start = [NSDate date];
@@ -369,25 +329,13 @@ const NSTimeInterval timeSince(NSDate *since) {
         }
         
         while ([results next]) {
-            NSDictionary *data = [[results dataForColumnIndex:2] objectFromJSONData];
-//            if (_manualSearchFields.count) {
-//                for (NSString *paramKey in _manualSearchFields) {
-//                    if (![data[paramKey] isEqual:_parameters[paramKey]]) { // TODO: match columns other than strings (eg NSSet)
-//                        goto ignore_row;
-//                    }
-//                    goto keep_row;
-//                }
-//            ignore_row:
-//                continue;
-//            }
-            
+            NSDictionary *data = [[results dataForColumnIndex:2] objectFromJSONData];            
         keep_row:;
             NSString *key = [results stringForColumnIndex:1];
             SBModel *model = [[_meta.modelClass alloc] init];
             if (_decorator) {
                 model = _decorator(model);
             }
-            //[model setValuesForKeysWithDictionary:data];
             [model setValuesForKeysWithDatabaseDictionary:data];
             [model setKey:key];
             [ret addObject:model];
@@ -395,7 +343,6 @@ const NSTimeInterval timeSince(NSDate *since) {
         [results close];
     }];
     LogStmt(@"executed query: %@", query);
-//    LogStmt(@"manual search fields %@", [[_manualSearchFields allKeys] componentsJoinedByString:@", "]);
     LogStmt(@"total returned: %d", [ret count]);
     LogStmt(@"total time: %f", timeSince(start));
     return ret;
@@ -404,15 +351,17 @@ const NSTimeInterval timeSince(NSDate *since) {
 - (NSUInteger)count
 {
     if (self.manualSearchFields.count) {
-        NSLog(@"Can not count the query because there are missing indexes: %@", FormatContainer(self.manualSearchFields.allKeys));
+        NSLog(@"Can not count the query because there are missing indexes: %@",
+              FormatContainer(self.manualSearchFields.allKeys));
         return 0;
     }
     NSDate *start = [NSDate date];
-//    NSDictionary *queryParams = nil;
-    NSString *query = [self _queryForFields:@[ @"COUNT(*)" ] includeSort:YES]; // manualFields:nil queryParams:&queryParams];
+    NSString *query = [self _queryForFields:@[ @"COUNT(*)" ]
+                              statementType:SBModelQuerySelect
+                              includeFields:YES
+                                includeSort:YES];
     __block NSUInteger r = 0;
     [_meta inDatabase:^(FMDatabase *db) {
-//        FMResultSet *result = [db executeQuery:query withParameterDictionary:queryParams];
         FMResultSet *result = [db executeQuery:query];
         if (result == nil) {
             NSLog(@"query string: %@", self.query);
@@ -436,9 +385,6 @@ const NSTimeInterval timeSince(NSDate *since) {
 
 @implementation SBModelQueryBuilder
 {
-//    NSMutableArray *_equalTo;
-//    NSMutableArray *_notEqualTo;
-//    NSMutableArray *_containedWithin;
     NSMutableArray *_terms;
     SBModelSorting _sort;
     NSArray *_orderBy;
@@ -451,9 +397,6 @@ const NSTimeInterval timeSince(NSDate *since) {
     self = [super init];
     if (self) {
         _meta = meta;
-//        _equalTo = [NSMutableArray array];
-//        _notEqualTo = [NSMutableArray array];
-//        _containedWithin = [NSMutableArray array];
         _terms = [NSMutableArray array];
         _sort = SBModelAscending;
         _orderBy = @[ @"key" ];
@@ -538,23 +481,10 @@ const NSTimeInterval timeSince(NSDate *since) {
 
 - (SBModelQuery *)query
 {
-//    NSMutableDictionary *props = [NSMutableDictionary dictionary];
-//    void(^setProp)(id, NSUInteger, BOOL *) = ^ (NSArray *obj, NSUInteger idx, BOOL *stop) {
-//        if (!props[obj[0]]) {
-//            props[obj[0]] = [NSMutableArray array];
-//        }
-//        [props[obj[0]] addObject:obj[1]];
-//    };
-//    [_equalTo enumerateObjectsUsingBlock:setProp];
-//    [_notEqualTo enumerateObjectsUsingBlock:setProp];
-//    [_containedWithin enumerateObjectsUsingBlock:setProp];
-    
     SBModelQuery *q = [[SBModelQuery alloc] initWithMeta:_meta];
-//    [q populateWithTerms:[NSSet setWithArray:_terms] orderBy:_orderBy sort:_sort decorator:_resultDecorator];
     SBModelQueryTermAnd *qt = [[SBModelQueryTermAnd alloc] initWithQueryTerms:_terms];
     
     [q populateWithTerms:[NSSet setWithObject:qt] orderBy:_orderBy sort:_sort decorator:_resultDecorator];
-//    [q populateWithParameters:props orderBy:_orderBy sort:_sort decorator:_resultDecorator];
     
     return q;
 }

@@ -29,6 +29,7 @@ typedef enum {
 - (SBModelResultSet *)results;
 - (NSUInteger)count;
 - (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count;
+- (void)removeAll; // this executes inside its own transaction (but should it?)
 
 @end
 
