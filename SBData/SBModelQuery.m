@@ -271,10 +271,23 @@ typedef enum {
             NSLog(@"UNABLE TO QUERY TERM: %@ - MISSING INDEX", term);
             continue; // TODO: implement manual search
         }
-        stmt = [NSString stringWithFormat:@"%@ %@ FROM %@ x INNER JOIN %@_%@ y ON x.%@ = y.%@ %@ WHERE %@ %@",
-                kind, fieldsStr, _meta.name, _meta.name, [index componentsJoinedByString:@"_"],
-                PRIVATE_UUID_KEY, PRIVATE_UUID_KEY, order[@"join"],
-                [whereClauses componentsJoinedByString:@" AND "], order[@"text"]];
+        // generate subquery
+        if (clause == SBModelQueryDelete) {
+            NSLog(@"delete");
+            
+            NSString *subselect = [NSString stringWithFormat:@"SELECT %@ FROM %@_%@ y WHERE %@",
+                                   PRIVATE_UUID_KEY, _meta.name, [index componentsJoinedByString:@"_"],
+                                   [whereClauses componentsJoinedByString:@" AND "]];
+            
+            stmt = [NSString stringWithFormat:@"%@ %@ FROM %@ %@ WHERE %@.%@ IN(%@) %@",
+                    kind, fieldsStr, _meta.name, order[@"join"], _meta.name, PRIVATE_UUID_KEY, subselect,
+                    order[@"text"]];
+        } else {
+            stmt = [NSString stringWithFormat:@"%@ %@ FROM %@ x INNER JOIN %@_%@ y ON x.%@ = y.%@ %@ WHERE %@ %@",
+                    kind, fieldsStr, _meta.name, _meta.name, [index componentsJoinedByString:@"_"],
+                    PRIVATE_UUID_KEY, PRIVATE_UUID_KEY, order[@"join"],
+                    [whereClauses componentsJoinedByString:@" AND "], order[@"text"]];
+        }
     }
     return stmt;
 }
@@ -301,6 +314,8 @@ typedef enum {
         FMDatabase *db = [_meta writeDatabase];
         if (![db executeUpdate:query]) {
             NSLog(@"error removing rows %@", [db lastError]);
+        } else {
+            LogStmt(@"removed %d rows", [db changes]);
         }
     }];
 }
