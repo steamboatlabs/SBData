@@ -40,6 +40,7 @@ typedef enum {
 
 - (SBModelQueryBuilder *)property:(NSString *)propName isEqualTo:(id)obj;
 - (SBModelQueryBuilder *)property:(NSString *)propName isContainedWithin:(NSSet *)set;
+- (SBModelQueryBuilder *)property:(NSString *)propName isNotCointainedWithinSet:(NSSet *)set;
 - (SBModelQueryBuilder *)property:(NSString *)propName isNotEqualTo:(id)obj;
 - (SBModelQueryBuilder *)properties:(NSArray *)propNames areNotEqualTo:(NSArray *)values;
 - (SBModelQueryBuilder *)propertyTuple:(NSArray *)propNames isContainedWithinValueTuples:(NSSet *)set; // eg [(firstName, lastName)] is contained within {("samuel", "sutch"), ("brandom", "smalls"), ("fart", "mcgeezles")} - all value tuples must be the same length as the property tuple

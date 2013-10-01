@@ -437,6 +437,13 @@ typedef enum {
     return self;
 }
 
+- (SBModelQueryBuilder *)property:(NSString *)propName isNotCointainedWithinSet:(NSSet *)set
+{
+    [_terms addObject:[[SBModelQueryTermNot alloc] initWithQueryTerms:@[[[SBModelQueryTermContainedWithin alloc]
+                                                                         initWithPropName:propName value:set]]]];
+    return self;
+}
+
 - (SBModelQueryBuilder *)properties:(NSArray *)propNames areNotEqualTo:(NSArray *)values
 {
     NSParameterAssert(propNames.count == values.count);
