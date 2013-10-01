@@ -26,7 +26,6 @@ typedef enum {
 
 @interface SBModelQuery ()
 
-
 - (void)_genQuery;
 - (void)populateWithTerms:(NSSet *)terms
                   orderBy:(NSArray *)orderBy
@@ -47,6 +46,17 @@ typedef enum {
 @property (nonatomic, readonly) NSString *query;
 @property (nonatomic, readonly) NSDictionary *queryParameters;
 @property (nonatomic, readonly) NSDictionary *manualSearchFields;
+
+@end
+
+
+@interface SBModelQueryBuilder ()
+
+- (id)initWithTerms:(NSArray *)terms
+            orderBy:(NSArray *)order
+               sort:(SBModelSorting)sort
+          decorator:(id(^)(SBModel *))dec
+               meta:(SBModelMeta *)meta;
 
 @end
 
@@ -86,6 +96,15 @@ typedef enum {
     _orderBy = orderBy;
     _sortOrder = sort;
     _decorator = dec;
+}
+
+- (SBModelQueryBuilder *)builder
+{
+    return [[SBModelQueryBuilder alloc] initWithTerms:[_queryTerms allObjects]
+                                              orderBy:_orderBy
+                                                 sort:_sortOrder
+                                            decorator:_decorator
+                                                 meta:_meta];
 }
 
 - (void)setDirty:(BOOL)dirty
@@ -405,6 +424,23 @@ typedef enum {
     NSArray *_orderBy;
     SBModelMeta *_meta;
     id (^_resultDecorator)(SBModel *);
+}
+
+- (id)initWithTerms:(NSArray *)terms
+            orderBy:(NSArray *)order
+               sort:(SBModelSorting)sort
+          decorator:(id (^)(SBModel *))dec
+               meta:(SBModelMeta *)meta
+{
+    self = [super init];
+    if (self) {
+        _meta = meta;
+        _terms = [terms mutableCopy];
+        _orderBy = order;
+        _sort = sort;
+        _resultDecorator = dec;
+    }
+    return self;
 }
 
 - (id)initWithMeta:(SBModelMeta *)meta

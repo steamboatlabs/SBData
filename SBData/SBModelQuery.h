@@ -11,6 +11,7 @@
 @class SBModel;
 @class SBModelMeta;
 @class SBModelResultSet;
+@class SBModelQueryBuilder;
 
 typedef enum {
     SBModelAscending,
@@ -30,6 +31,7 @@ typedef enum {
 - (NSUInteger)count;
 - (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count;
 - (void)removeAll; // this executes inside its own transaction (but should it?)
+- (SBModelQueryBuilder *)builder;
 
 @end
 
