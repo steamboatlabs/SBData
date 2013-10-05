@@ -410,6 +410,32 @@
     [cli enqueueHTTPRequestOperation:op];
 }
 
+- (void)updateInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure
+{
+    NSParameterAssert(self.session != nil);
+    AFHTTPClient *cli = self.authorized ? self.session.authorizedHttpClient : self.session.anonymousHttpClient;
+    
+    NSURLRequest *req = [cli requestWithMethod:@"PUT" path:[self path] parameters:[self toNetworkRepresentation]];
+    
+    SBJSONRequestOperation *op = [[SBJSONRequestOperation alloc] initWithRequest:req];
+    
+    [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+        dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
+        dispatch_async(q, ^{
+            [[[self class] meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+                [self setValuesForKeysWithNetworkDictionary:responseObject];
+                [meta save:self];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    onSuccess(self);
+                });
+            }];
+        });
+    } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+        onFailure(error);
+    }];
+    [cli enqueueHTTPRequestOperation:op];
+}
+
 - (void)updateWithNetworkRepresentation:(NSDictionary *)representation
                                 success:(SBSuccessBlock)onSuccess
                                 failure:(SBErrorBlock)onFailure

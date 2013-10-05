@@ -48,6 +48,8 @@
 
 - (void)refreshInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure;
 
+- (void)updateInBackgroundWithBlock:(SBSuccessBlock)onSuccess failure:(SBErrorBlock)onFailure;
+
 - (void)updateWithNetworkRepresentation:(NSDictionary *)representation
                                 success:(SBSuccessBlock)onSuccess
                                 failure:(SBErrorBlock)onFailure;
