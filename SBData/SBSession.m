@@ -546,16 +546,28 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
 
 - (void)syncUser
 {
-    [self authorizedJSONRequestWithMethod:@"GET" path:@"/users.json" paramters:@{} success:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, id JSON) {
-        [self.user setValuesForKeysWithNetworkDictionary:JSON];
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-            [self.user save];
-            NSLog(@"successfully got and saved user");
-            [self syncPushToken];
-        });
-    } failure:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, NSError *error, id JSON) {
-        NSLog(@"failed to get current user error=%@ json=%@", error, JSON);
+    [self syncUserSuccess:^(id successObj) {
+        //
+    } failure:^(NSError *error) {
+        //
     }];
+}
+
+- (void)syncUserSuccess:(SBSuccessBlock)success failure:(SBErrorBlock)failure
+{
+    [self authorizedJSONRequestWithMethod:@"GET" path:@"/users.json" paramters:@{} success:
+     ^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, id JSON) {
+         [self.user setValuesForKeysWithNetworkDictionary:JSON];
+         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
+             [self.user save];
+             success(self.user);
+             NSLog(@"successfully got and saved user");
+//             [self syncPushToken];
+         });
+     } failure:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, NSError *error, id JSON) {
+         NSLog(@"failed to get current user error=%@ json=%@", error, JSON);
+         failure(error);
+     }];
 }
 
 - (void)syncPushToken

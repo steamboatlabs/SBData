@@ -123,6 +123,7 @@ extern NSString *SBDidReceiveRemoteNotificationAuthorization;
 
 // updates self.user with an updated copy from the web
 - (void)syncUser;
+- (void)syncUserSuccess:(SBSuccessBlock)success failure:(SBErrorBlock)failure;
 
 // asks for permission to send push notifications and subsequently uploads the push notification token for this device id
 - (void)syncPushToken;
