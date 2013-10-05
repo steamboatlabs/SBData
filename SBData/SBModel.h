@@ -12,7 +12,7 @@
 
 @class SBModelMeta;
 
-@interface SBModel : NSObject
+@interface SBModel : NSObject <SBLazyField>
 
 // what indexes in the DB
 + (NSArray *)indexes;
@@ -22,7 +22,7 @@
 
 + (SBModelMeta *)meta;
 + (SBModelMeta *)unsafeMeta; // meta which does not serialize its access to the underlying database 
-
++ (NSString *)name; // the name by which this model is identified, customizable
 + (void)registerModel:(Class)klass; // prepares this class for use
 
 // every model instance is identified by a key that must be unique to all other models of the same class
@@ -33,6 +33,7 @@
 - (id)valueForKey:(NSString *)key;
 - (void)setValuesForKeysWithDictionary:(NSDictionary *)keyedValues;
 - (void)setNilValueForKey:(NSString *)key;
+- (NSArray *)allKeys;
 
 // returns a dictionary representation of this object; it must be safely json-able
 - (NSDictionary *)dictionaryValue;

@@ -59,6 +59,13 @@
                                 success:(SBSuccessBlock)success
                                 failure:(SBErrorBlock)failure;
 
+// delete all cached objects then reload them from the network resource
+// this method does not paginate resources which are paginated, it will get just the first page
++ (void)reloadEntireCollectionFromNetworkSession:(SBSession *)session
+                                      authorized:(BOOL)isAuthorizedUser
+                                         success:(SBSuccessBlock)success
+                                         failure:(SBErrorBlock)failure;
+
 + (void)saveBulk:(NSArray *)array withSession:(SBSession *)session key:(NSString *)existingKey // key to find existing objects, defaults to "objId"
       authorized:(BOOL)authorized success:(SBSuccessBlock)success failure:(SBErrorBlock)failure;
 

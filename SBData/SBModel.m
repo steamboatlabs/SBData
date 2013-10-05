@@ -14,6 +14,8 @@
 @implementation SBModel
 {
     NSMutableDictionary *_data;
+    NSMutableSet *_lazyFields;
+    BOOL _isPopulated;
 }
 
 + (SBModelMeta *)meta
@@ -37,14 +39,14 @@
     return meta;
 }
 
-NSMutableArray *_registeredSubclasses;
+NSMutableDictionary *_registeredSubclasses;
 
 + (void)registerModel:(Class)klass
 {
     if (!_registeredSubclasses) {
-        _registeredSubclasses = [NSMutableArray new];
+        _registeredSubclasses = [NSMutableDictionary new];
     }
-    [_registeredSubclasses addObject:klass];
+    [_registeredSubclasses setObject:klass forKey:[klass name]];
 }
 
 //
@@ -132,7 +134,8 @@ id getValue(id self, SEL _cmd) {
     NSMutableSet *getters = [NSMutableSet set];
     NSMutableDictionary *setterToPropertyName = [NSMutableDictionary dictionaryWithCapacity:setters.count];
     for (NSString *propName in props) {
-        NSString *capitalized = [[[propName substringToIndex:1] capitalizedString] stringByAppendingString:[propName substringFromIndex:1]];
+        NSString *capitalized = [[[propName substringToIndex:1] capitalizedString]
+                                 stringByAppendingString:[propName substringFromIndex:1]];
         NSString *setterName = [NSString stringWithFormat:@"set%@:", capitalized];
         [setters addObject:setterName];
         [getters addObject:propName];
@@ -146,11 +149,17 @@ id getValue(id self, SEL _cmd) {
 
 - (id)valueForKey:(NSString *)key
 {
+    if (_data[key] && [_lazyFields containsObject:key] && ![_data[key] isPopulated]) {
+        [_data[key] populate];
+    }
     return _data[key];
 }
 
 - (void)setValue:(id)value forKey:(NSString *)key
 {
+    if ([[value class] conformsToProtocol:@protocol(SBLazyField)]) {
+        [_lazyFields addObject:key];
+    }
     _data[key] = value;
 }
 
@@ -168,7 +177,11 @@ id getValue(id self, SEL _cmd) {
         Class propClass = [[self class] classForPropertyName:key];
         id value = keyedValues[key];
         if (propClass && [propClass conformsToProtocol:@protocol(SBField)]) {
-            value = [propClass fromDatabase:value];
+            if ([propClass conformsToProtocol:@protocol(SBLazyField)]) {
+                value = [propClass fromDatabaseLazy:value];
+            } else {
+                value = [propClass fromDatabase:value];
+            }
         }
         [self setValue:value forKey:key];
     }
@@ -198,6 +211,86 @@ id getValue(id self, SEL _cmd) {
     [_data removeObjectForKey:key];
 }
 
+- (NSArray *)allKeys
+{
+    return _data.allKeys;
+}
+
+// SBField protocol ----------------------------------------------------------------------------------------------------
+
+- (NSString *)toDatabase
+{
+    if (self.key) {
+        return [NSString stringWithFormat:@"%@,%@", self.class.name, self.key];
+    }
+    return nil;
+}
+
++ (instancetype)fromDatabase:(NSString *)str
+{
+    NSArray *parts = [str componentsSeparatedByString:@","];
+    if (parts.count != 2) {
+        NSLog(@"Error fetching foreign key: invalid format %@", str);
+        return nil;
+    }
+    Class cls = [_registeredSubclasses objectForKey:parts[0]];
+    if (!cls) {
+        NSLog(@"Error fetching foreign key: couldn't find model named '%@'",
+              parts[0]);
+        return nil;
+    }
+    id inst = [[cls unsafeMeta] findByKey:parts[1]];  //[[cls meta] findByKey:parts[1]];
+    if (!inst) {
+        NSLog(@"Error fetching foreign key: destination object no longer exists");
+        return nil;
+    }
+    return inst;
+}
+
++ (NSString *)databaseType
+{
+    return @"TEXT";
+}
+
++ (instancetype)fromDatabaseLazy:(NSString *)str
+{
+    NSArray *parts = [str componentsSeparatedByString:@","];
+    if (parts.count != 2) {
+        NSLog(@"Error fetching foreign key: invalid format %@", str);
+        return nil;
+    }
+    Class cls = [_registeredSubclasses objectForKey:parts[0]];
+    if (!cls) {
+        NSLog(@"Error fetching foreign key: couldn't find model named '%@'",
+              parts[0]);
+        return nil;
+    }
+    
+    SBModel *inst = [[self alloc] init];
+    inst->_isPopulated = NO;
+    inst.key = parts[1];
+    
+    return inst;
+}
+
+- (BOOL)isPopulated
+{
+    return _isPopulated;
+}
+
+- (void)populate
+{
+    [[[self class] unsafeMeta] reload:self];
+    _isPopulated = YES;
+}
+
+- (void)populate:(id)val
+{
+    [self willReload];
+    [self setValuesForKeysWithDatabaseDictionary:val];
+    _isPopulated = YES;
+}
+
 //
 // public --------------------------------------------------------------------------------------------------------------
 //
@@ -207,8 +300,14 @@ id getValue(id self, SEL _cmd) {
     self = [super init];
     if (self) {
         _data = [NSMutableDictionary new];
+        _lazyFields = [NSMutableSet set];
     }
     return self;
+}
+
++ (NSString *)name
+{
+    return NSStringFromClass(self);
 }
 
 - (NSDictionary *)dictionaryValue
@@ -296,7 +395,7 @@ id getValue(id self, SEL _cmd) {
 
 + (void)initDb
 {
-    for (Class kls in _registeredSubclasses) {
+    for (Class kls in _registeredSubclasses.allValues) {
         [[kls meta] initDb];
     }
 }
@@ -434,7 +533,7 @@ static dispatch_queue_t _sharedQueue;
             NSMutableString *mStmt = [[NSMutableString alloc] initWithFormat:
                                       @"CREATE TABLE IF NOT EXISTS %@ (%@ VARCHAR(36) NOT NULL",
                                       tableName, PRIVATE_UUID_KEY];
-            for (NSString *field in idx) {
+            for (__strong NSString *field in idx) {
                 NSString *fieldType = @"TEXT";
                 Class propClass = [_modelClass classForPropertyName:field];
                 if (propClass && [propClass conformsToProtocol:@protocol(SBField)]) {
@@ -766,7 +865,7 @@ static dispatch_queue_t _sharedQueue;
 {
     [self _loadIfFirst];
     NSParameterAssert(pageNum < _pages.count);
-    NSArray *pg = [[self query] fetchOffset:pageNum*_pageSize count:_pageSize];
+    NSArray *pg = [[self query] fetchOffset:pageNum*_pageSize count:_pageSize includeRelated:YES];
     _pages[pageNum] = @[ pg, [NSNumber numberWithBool:YES] ];
 }
 

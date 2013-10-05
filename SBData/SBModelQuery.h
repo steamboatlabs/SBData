@@ -29,7 +29,7 @@ typedef enum {
 - (id)initWithMeta:(SBModelMeta *)meta;
 - (SBModelResultSet *)results;
 - (NSUInteger)count;
-- (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count;
+- (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count includeRelated:(BOOL)includeRelated;
 - (void)removeAll; // this executes inside its own transaction (but should it?)
 - (void)removeAllUnsafe;
 - (SBModelQueryBuilder *)builder;

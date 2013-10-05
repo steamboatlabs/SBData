@@ -169,7 +169,6 @@
 		15E038B917DFB5DB0009C3EC = {
 			isa = PBXGroup;
 			children = (
-				153BBCB017DFCCBD0071E63B /* Security.framework */,
 				15E038C717DFB5DB0009C3EC /* SBData */,
 				15E038DC17DFB5DB0009C3EC /* SBDataTests */,
 				15E038C417DFB5DB0009C3EC /* Frameworks */,
@@ -190,6 +189,7 @@
 		15E038C417DFB5DB0009C3EC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				153BBCB017DFCCBD0071E63B /* Security.framework */,
 				153BBC2017DFBAB00071E63B /* MobileCoreServices.framework */,
 				153BBC1E17DFBA810071E63B /* SystemConfiguration.framework */,
 				15E038C517DFB5DB0009C3EC /* Foundation.framework */,

@@ -468,6 +468,58 @@
     });
 }
 
++ (void)reloadEntireCollectionFromNetworkSession:(SBSession *)session
+                                      authorized:(BOOL)isAuthorizedUser
+                                         success:(SBSuccessBlock)success
+                                         failure:(SBErrorBlock)failure
+{
+    dispatch_queue_t q = (dispatch_queue_t)objc_getAssociatedObject([self class], "processingQueue");
+    dispatch_async(q, ^{
+        [[self meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+            [meta removeAll];
+        }];
+        NSParameterAssert(session != nil);
+        AFHTTPClient *cli = isAuthorizedUser ? session.authorizedHttpClient : session.anonymousHttpClient;
+        
+        NSURLRequest *req = [cli requestWithMethod:@"GET" path:[self bulkPath] parameters:@{}];
+        
+        SBJSONRequestOperation *op = [[SBJSONRequestOperation alloc] initWithRequest:req];
+        
+        [op setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id page) {
+            dispatch_async(q, ^{
+                __block NSMutableArray *all;
+                [[self meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
+                    NSArray *stuff;
+                    
+                    // make this accept either an array or a dictionary containing an array
+                    if ([page isKindOfClass:[NSDictionary dictionary]]) {
+                        stuff = [page objectForKey:@"data"]; // TODO make this parameter configurable
+                        all = [NSMutableArray arrayWithCapacity:[page[@"data"] count]];
+                    } else if ([page isKindOfClass:[NSArray class]]) {
+                        stuff = page;
+                        all = [NSMutableArray arrayWithCapacity:[page count]];
+                    } else {
+                        @throw [NSException exceptionWithName:NSInternalInconsistencyException
+                                                       reason:@"Could not process page. Unrecognized return format"
+                                                     userInfo:@{ @"page": page }];
+                    }
+                    for (NSDictionary *rep in stuff) {
+                        SBDataObject *obj = [self fromNetworkRepresentation:rep session:session save:YES];
+                        [meta save:obj];
+                        [all addObject:obj];
+                    }
+                }];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    success(all);
+                });
+            });
+        } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+            failure(error);
+        }];
+        [cli enqueueHTTPRequestOperation:op];
+    });
+}
+
 - (void)getRedirectResponse:(NSHTTPURLResponse *)response client:(AFHTTPClient *)cli
                     success:(SBSuccessBlock)success failure:(SBErrorBlock)failure
 {
@@ -706,13 +758,14 @@
     }
     [_session authorizedJSONRequestWithMethod:@"GET" path:[self path] paramters:@{ } success:^(NSURLRequest *request, NSHTTPURLResponse *response, id JSON) {
         // pass
-        NSLog(@"got json: %@", JSON);
+//        NSLog(@"got json: %@", JSON);
         [self _setBeforeParams:JSON];
         dispatch_async(_processingQueue, ^{
-            if (self.clearsCollectionBeforeSaving) {
-                [[self query] removeAll];
-            }
-            NSArray *replacement = [self _processPage:JSON];
+//            if (self.clearsCollectionBeforeSaving) {
+//                NSMutableArray *objIds = [NSMutableArray alloc];
+//                [[self query] removeAll];
+//            }
+            NSArray *replacement = [self _processPage:JSON clear:YES];
             dispatch_async(dispatch_get_main_queue(), ^{
                 [self _reset:replacement];
                 if (self.delegate && [self.delegate respondsToSelector:@selector(resultSetDidReload:)]) {
@@ -733,7 +786,7 @@
 {
     [_session authorizedJSONRequestWithMethod:@"GET" path:[self path] paramters:@{} success:^(NSURLRequest *request, NSHTTPURLResponse *httpResponse, id JSON) {
         dispatch_async(_processingQueue, ^{
-            NSArray *newObjects = [self _processPage:JSON];
+            NSArray *newObjects = [self _processPage:JSON clear:NO];
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (!_allObjects.count) {
                     [self _reset:newObjects];
@@ -792,7 +845,7 @@
 //        NSLog(@"got next page %@", JSON);
         [self _setBeforeParams:JSON];
         dispatch_async(_processingQueue, ^{
-            NSArray *additions = [self _processPage:JSON];
+            NSArray *additions = [self _processPage:JSON clear:NO];
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (self.query.sortOrder == SBModelDescending) {
                     [self _append:additions];
@@ -892,7 +945,7 @@
     return obj;
 }
 
-- (NSArray *)_processPage:(id)page
+- (NSArray *)_processPage:(id)page clear:(BOOL)shouldIclear
 {
     __block NSMutableArray *all;
     [[_dataObjectClass meta] inTransaction:^(SBModelMeta *meta, BOOL *rollback) {
@@ -908,12 +961,20 @@
             NSLog(@"SBDataObjectResultSet was unable to process a page %@", page);
             return;
         }
+        NSMutableArray *objIds = [NSMutableArray array];
         for (NSDictionary *rep in stuff) {
             SBDataObject *undecoratedObj = [_dataObjectClass fromNetworkRepresentation:rep session:self.session save:NO];
+            [objIds addObject:undecoratedObj.objId];
             SBDataObject *obj = [self _decorateObject:undecoratedObj]; //[[_dataObjectClass alloc] initWithSession:self.session];
             [meta save:obj];
             [all addObject:obj];
         }
+         if (self.clearsCollectionBeforeSaving) {
+             // hah, we're actually clearing AFTER saving yo!
+             SBModelQuery *delQ =[[[[self query] builder] property:@"objId"
+                                          isNotCointainedWithinSet:[NSSet setWithArray:objIds]] query];
+             [delQ removeAllUnsafe];
+         }
     }];
     return all;
 }

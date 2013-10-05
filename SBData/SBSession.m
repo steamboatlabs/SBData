@@ -208,7 +208,7 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
 - (id)initWithIdentifier:(NSString *)identifier userClass:(Class)userClass
 {
     self = [super init];
-    [[AFHTTPRequestOperationLogger sharedLogger] startLogging];
+//    [[AFHTTPRequestOperationLogger sharedLogger] startLogging];
     if (self) {
         _userClass = userClass;
         _apiMountPointSpec = [[NSBundle mainBundle] objectForInfoDictionaryKey:SBApiBaseURLKey];
@@ -227,7 +227,7 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
 - (id)initWithEmailAddress:(NSString *)emailAddy userClass:(Class)userClass
 {
     self = [self initWithIdentifier:nil userClass:userClass];
-    [[AFHTTPRequestOperationLogger sharedLogger] startLogging];
+//    [[AFHTTPRequestOperationLogger sharedLogger] startLogging];
     if (self && emailAddy != nil) {
         // try to find an existingSBUser with that email
         SBUser *user = [[userClass meta] findOne:@{ @"email": emailAddy }];
@@ -388,7 +388,6 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
         [self getOAuth:user password:password success:^ (id _) {
             self.sessionData.userKey = [user key];
             [self.sessionData save];
-            [self syncPushToken];
             success(user);
         } failure:failure];
     } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
@@ -516,7 +515,6 @@ static NSMutableDictionary *_sessionByEmailAddress = nil;
             [self.user save];
             self.sessionData.userKey = self.user.key;
             [self.sessionData save];
-            [self syncPushToken];
             success(self.user);
         } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
             NSLog(@"operation: %@", operation.request.allHTTPHeaderFields);

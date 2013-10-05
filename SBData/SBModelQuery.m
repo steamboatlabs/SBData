@@ -355,7 +355,7 @@ typedef enum {
 }
 
 // not guaranteed to return `count` number of items - manual filtering may be required
-- (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count
+- (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count includeRelated:(BOOL)includeRelated
 {
     NSParameterAssert((offset == -1 && count) || (offset != -1 && count != -1) || (offset == -1 && count == -1)); // you can provide count, count and offset, or neither
     NSDate *start = [NSDate date];
@@ -387,6 +387,12 @@ typedef enum {
             }
             [model setValuesForKeysWithDatabaseDictionary:data];
             [model setKey:key];
+            if (includeRelated) {
+                // nasty dirty hack to fetch related objects... gross... gross. gross. gross.
+                for (NSString *k in model.allKeys) {
+                    [model valueForKey:k]; // gross
+                }
+            }
             [ret addObject:model];
         }
         [results close];

@@ -39,4 +39,17 @@
 @end
 
 
+@protocol SBLazyField <SBField>
 
+// generates an instance of the class but waits until it's accessed to deserialize
++ (instancetype)fromDatabaseLazy:(NSString *)dbVal;
+
+// fills in the deserialized value from an arbitrary value
+- (void)populate:(id)val;
+
+// fills in the deserialized value from the database valeu
+- (void)populate;
+
+- (BOOL)isPopulated;
+
+@end
