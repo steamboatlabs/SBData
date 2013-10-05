@@ -32,11 +32,11 @@ SPEC CHECKSUMS:
   AFHTTPRequestOperationLogger: c6ad1f4bfd64fc9a8dbe94c8489420d195f15cb0
   AFNetworking: 761a418233d280c1e0580bcb76ff9cb4c3073d17
   AFOAuth2Client: 039596f19e8a4bdd852cb3fc44ddbe45e12c290a
-  FMDB: 2769004a271eae0bbd8bd4f45a3f2acfd0d3df0e
+  FMDB: 8e5b7e0c644a13a70be0ec5dbffc6b30e524ab5d
   ISO8601DateFormatter: 077ce9d8cfba171bc1ced6cba0d2ae4aefab7619
   JSONKit: 409734ab3407fce90ef7eaa95d7168f38d9a6601
   PDKeychainBindingsController: 463c207f8726e4aaec1ec20fd1876082ee86cb0a
   SecureUDID: f29e17c7fc56968b6c42ce328b901a9fec87bb44
   sqlite3: da2547a00213287224486db2893bb9c181c6f8d2
 
-COCOAPODS: 0.19.1
+COCOAPODS: 0.25.0
