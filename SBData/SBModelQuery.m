@@ -339,6 +339,21 @@ typedef enum {
     }];
 }
 
+- (void)removeAllUnsafe
+{
+    NSString *query = [self _queryForFields:@[ PRIVATE_UUID_KEY ]
+                              statementType:SBModelQueryDelete
+                              includeFields:NO
+                                includeSort:NO];
+    LogStmt(@"%@", query);
+    FMDatabase *db = [_meta writeDatabase];
+    if (![db executeUpdate:query]) {
+        NSLog(@"error removing rows %@", [db lastError]);
+    } else {
+        LogStmt(@"removed %d rows", [db changes]);
+    }
+}
+
 // not guaranteed to return `count` number of items - manual filtering may be required
 - (NSArray *)fetchOffset:(NSInteger)offset count:(NSInteger)count
 {
@@ -436,7 +451,7 @@ typedef enum {
     if (self) {
         _meta = meta;
         _terms = [terms mutableCopy];
-        _orderBy = order;
+        _orderBy = [order copy];
         _sort = sort;
         _resultDecorator = dec;
     }
